@@ -21,6 +21,7 @@
   const CEILING_Y = BOARD_Y;
   const TAP_MS = 210;
   const TAP_DISTANCE = 12;
+  const SCORE_PER_LEVEL = 1000;
 
   const COLORS = {
     I: 0x55f2c6,
@@ -43,6 +44,62 @@
   };
 
   const TYPES = Object.keys(SHAPES);
+
+  function lerpColor(c1, c2, t) {
+    const r1 = (c1 >> 16) & 0xff;
+    const g1 = (c1 >> 8) & 0xff;
+    const b1 = c1 & 0xff;
+    const r2 = (c2 >> 16) & 0xff;
+    const g2 = (c2 >> 8) & 0xff;
+    const b2 = c2 & 0xff;
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    return (r << 16) | (g << 8) | b;
+  }
+
+  const THEMES = [
+    {
+      name: 'CYBERPUNK NEON',
+      bg: 0x130f28,
+      board: 0x1b1640,
+      lava: 0xff6b22,
+      lavaLight: 0xffc35c,
+      accent: 0x55f2c6,
+      spark: 0x55f2c6,
+      grid: 0x463a72
+    },
+    {
+      name: 'VOLCANIC CORE',
+      bg: 0x160918,
+      board: 0x29102d,
+      lava: 0xe82222,
+      lavaLight: 0xff7a24,
+      accent: 0xff6647,
+      spark: 0xff9b52,
+      grid: 0x5a244f
+    },
+    {
+      name: 'QUANTUM MATRIX',
+      bg: 0x081810,
+      board: 0x0f291a,
+      lava: 0xf2d51b,
+      lavaLight: 0xfff690,
+      accent: 0x39ff14,
+      spark: 0x39ff14,
+      grid: 0x1b4d30
+    },
+    {
+      name: 'SPACE ABYSS',
+      bg: 0x050508,
+      board: 0x0a0a14,
+      lava: 0xa91bd4,
+      lavaLight: 0xff5eea,
+      accent: 0xb68cff,
+      spark: 0xffffff,
+      grid: 0x29234b
+    }
+  ];
 
   function normalize(cells) {
     const minX = Math.min(...cells.map(([x]) => x));
@@ -82,6 +139,17 @@
 
     create() {
       this.graphics = this.add.graphics();
+      
+      this.levelAnnouncer = this.add.text(WIDTH / 2, HEIGHT / 2, '', {
+        fontFamily: '"DM Mono", monospace',
+        fontSize: '28px',
+        color: '#ffffff',
+        align: 'center',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 6,
+      }).setOrigin(0.5).setAlpha(0).setDepth(10);
+
       this.input.on('pointerdown', (pointer) => this.onPointerDown(pointer));
       this.input.on('pointermove', (pointer) => this.onPointerMove(pointer));
       this.input.on('pointerup', (pointer) => this.onPointerUp(pointer));
@@ -111,6 +179,14 @@
       this.score = 0;
       this.level = 1;
       this.elapsedRun = 0;
+      this.themeIndex = 0;
+      this.currentTheme = { ...THEMES[0] };
+      this.startTheme = { ...THEMES[0] };
+      this.themeT = 1;
+      if (this.levelAnnouncer) {
+        this.levelAnnouncer.setAlpha(0);
+        this.tweens.killTweensOf(this.levelAnnouncer);
+      }
       this.setState(nextState);
       this.callbacks.onScore(0);
       this.callbacks.onLevel(1);
@@ -120,6 +196,49 @@
     setState(state) {
       this.gameState = state;
       this.callbacks.onState(state);
+    }
+
+    showLevelAnnouncer() {
+      const text = `¡NIVEL ${this.level}!\n${THEMES[this.themeIndex].name}`;
+      this.levelAnnouncer.setText(text);
+      const hex = '#' + this.currentTheme.accent.toString(16).padStart(6, '0');
+      this.levelAnnouncer.setColor(hex);
+      this.levelAnnouncer.setAlpha(1);
+      this.levelAnnouncer.setScale(0.8);
+      this.levelAnnouncer.setY(HEIGHT / 2 + 30);
+      
+      this.tweens.killTweensOf(this.levelAnnouncer);
+      this.tweens.add({
+        targets: this.levelAnnouncer,
+        y: HEIGHT / 2 - 40,
+        scale: 1,
+        duration: 2000,
+        ease: 'Cubic.easeOut',
+      });
+      this.tweens.add({
+        targets: this.levelAnnouncer,
+        alpha: 0,
+        delay: 1400,
+        duration: 600,
+        ease: 'Power2'
+      });
+    }
+
+    lerpTheme(elapsed) {
+      if (this.themeT >= 1) return;
+      this.themeT = Math.min(1, this.themeT + elapsed / 1500);
+      const t = this.themeT;
+      const target = THEMES[this.themeIndex];
+      const start = this.startTheme;
+      this.currentTheme = {
+        bg: lerpColor(start.bg, target.bg, t),
+        board: lerpColor(start.board, target.board, t),
+        lava: lerpColor(start.lava, target.lava, t),
+        lavaLight: lerpColor(start.lavaLight, target.lavaLight, t),
+        accent: lerpColor(start.accent, target.accent, t),
+        spark: lerpColor(start.spark, target.spark, t),
+        grid: lerpColor(start.grid, target.grid, t),
+      };
     }
 
     togglePause() {
@@ -133,6 +252,7 @@
       if (this.gameState !== 'ready') return;
       this.setState('playing');
       this.callbacks.onMessage('DRAG UP · TAP QUICKLY TO ROTATE');
+      this.showLevelAnnouncer();
     }
 
     onPointerDown(pointer) {
@@ -285,13 +405,14 @@
       const piece = this.active;
       for (const { col, row } of this.activeGridCells(piece)) {
         this.grid[row][col] = { color: piece.color, type: piece.type };
+        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color, 3);
       }
       this.active = null;
       this.score += 40 * this.level;
       this.callbacks.onScore(this.score);
       this.callbacks.onMessage('ANCHOR LOCKED · STRUCTURE STABLE');
       global.PixelStackAudio?.playSnap();
-      this.flashBoard(0x55f2c6, 210);
+      this.flashBoard(this.currentTheme.accent, 210);
       this.clearCompletedRows();
     }
 
@@ -305,7 +426,7 @@
 
       for (const row of complete) {
         for (let col = 0; col < COLS; col += 1) {
-          this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, this.grid[row][col].color);
+          this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, this.grid[row][col].color, 5);
         }
       }
 
@@ -326,13 +447,23 @@
       if (!this.graphics) return;
       const elapsed = Math.min(delta || 16, 40);
 
+      this.lerpTheme(elapsed);
+
       if (this.gameState === 'playing') {
         this.elapsedRun += elapsed;
-        const nextLevel = Math.min(10, 1 + Math.floor(this.elapsedRun / 22000));
-        if (nextLevel !== this.level) {
+        const nextLevel = 1 + Math.floor(this.score / SCORE_PER_LEVEL);
+        if (nextLevel > this.level) {
           this.level = nextLevel;
           this.callbacks.onLevel(this.level);
           this.callbacks.onMessage(`LEVEL ${this.level} · PRESSURE INCREASING`);
+          
+          const nextThemeIdx = (this.level - 1) % 4;
+          if (nextThemeIdx !== this.themeIndex) {
+            this.startTheme = { ...this.currentTheme };
+            this.themeIndex = nextThemeIdx;
+            this.themeT = 0;
+            this.showLevelAnnouncer();
+          }
         }
 
         if (time > this.lavaPausedUntil) {
@@ -345,9 +476,24 @@
         if (this.lavaTop <= CEILING_Y + 2) this.endRun();
       }
 
+      const themeName = THEMES[this.themeIndex].name;
       for (const spark of this.sparks) {
-        spark.y -= (spark.speed * elapsed) / 1000;
-        if (spark.y < 42) spark.y = 638;
+        if (themeName === 'SPACE ABYSS') {
+          spark.y += (spark.speed * elapsed) / 1000;
+          if (spark.y > 638) { spark.y = 46; spark.x = Phaser.Math.Between(16, 404); }
+        } else if (themeName === 'QUANTUM MATRIX') {
+          spark.y += (spark.speed * 1.5 * elapsed) / 1000;
+          if (spark.y > 638) { spark.y = 46; spark.x = Phaser.Math.Between(16, 404); }
+        } else if (themeName === 'VOLCANIC CORE') {
+          spark.y -= (spark.speed * 1.5 * elapsed) / 1000;
+          if (spark.y < 46) { spark.y = 638; spark.x = Phaser.Math.Between(16, 404); }
+        } else {
+          spark.y -= (spark.speed * elapsed) / 1000;
+          spark.x += (Math.sin(time / 1000 + spark.size) * 0.3);
+          if (spark.y < 46) { spark.y = 638; spark.x = Phaser.Math.Between(16, 404); }
+          if (spark.x < 16) spark.x = 404;
+          if (spark.x > 404) spark.x = 16;
+        }
       }
       this.effects = this.effects.filter((effect) => effect.until > time);
       this.draw(time);
@@ -367,12 +513,13 @@
       const size = dimensions(this.active.cells);
       const bottom = this.active.y + (size.height * CELL) / 2;
       if (bottom >= this.lavaTop) {
-        this.burstAt(this.active.x, this.lavaTop, this.active.color);
+        this.burstAt(this.active.x, this.lavaTop, this.active.color, 15);
         this.active = null;
         this.score = Math.max(0, this.score - 25);
         this.callbacks.onScore(this.score);
         this.callbacks.onMessage('PIECE LOST TO THE LAVA');
         this.contactPulseUntil = this.time.now + 500;
+        this.flashBoard(this.currentTheme.lava, 400);
       }
     }
 
@@ -395,7 +542,7 @@
       this.setState('gameover');
       this.active = null;
       global.PixelStackAudio?.playGameOver();
-      this.flashBoard(0xff5f52, 620);
+      this.flashBoard(this.currentTheme.lava, 620);
       this.callbacks.onMessage('FLUID BREACH · RUN ENDED');
       this.callbacks.onGameOver?.(this.score);
     }
@@ -404,8 +551,8 @@
       this.effects.push({ kind: 'flash', color, until: this.time.now + duration, duration });
     }
 
-    burstAt(x, y, color) {
-      for (let index = 0; index < 10; index += 1) {
+    burstAt(x, y, color, count = 10) {
+      for (let index = 0; index < count; index += 1) {
         this.effects.push({
           kind: 'particle',
           x,
@@ -422,12 +569,13 @@
     draw(time) {
       const g = this.graphics;
       g.clear();
-      g.fillStyle(0x130f28, 1);
+      g.fillStyle(this.currentTheme.bg, 1);
       g.fillRect(0, 0, WIDTH, HEIGHT);
-      g.fillStyle(0x1b1640, 0.56);
+      g.fillStyle(this.currentTheme.board, 0.56);
       g.fillRect(16, 46, 388, 592);
+      this.drawThemeBackdrop(time);
 
-      g.lineStyle(1, 0x463a72, 0.2);
+      g.lineStyle(1, this.currentTheme.grid, 0.3);
       for (let col = 0; col <= COLS; col += 1) {
         const x = BOARD_X + col * CELL;
         g.lineBetween(x, BOARD_Y, x, BOARD_BOTTOM);
@@ -437,14 +585,22 @@
         g.lineBetween(BOARD_X, y, BOARD_X + COLS * CELL, y);
       }
 
+      const themeName = THEMES[this.themeIndex].name;
       for (const spark of this.sparks) {
-        g.fillStyle(0xaea9ff, spark.alpha);
-        g.fillCircle(spark.x, spark.y, spark.size);
+        g.fillStyle(this.currentTheme.spark, spark.alpha);
+        let size = spark.size;
+        if (themeName === 'QUANTUM MATRIX') {
+           g.fillRect(spark.x, spark.y, size, size * 5);
+        } else if (themeName === 'SPACE ABYSS') {
+           g.fillCircle(spark.x, spark.y, size * 0.7);
+        } else {
+           g.fillCircle(spark.x, spark.y, size);
+        }
       }
 
-      g.fillStyle(0x55f2c6, 0.15);
+      g.fillStyle(this.currentTheme.accent, 0.15);
       g.fillRect(BOARD_X, BOARD_Y, COLS * CELL, CELL);
-      g.fillStyle(0x55f2c6, 0.85);
+      g.fillStyle(this.currentTheme.accent, 0.85);
       g.fillRect(BOARD_X, BOARD_Y, COLS * CELL, 3);
 
       for (let row = 0; row < ROWS; row += 1) {
@@ -459,14 +615,66 @@
       this.drawLava(time);
 
       if (this.gameState === 'paused') {
-        g.fillStyle(0x130f28, 0.58);
+        g.fillStyle(this.currentTheme.bg, 0.58);
         g.fillRect(16, 46, 388, 592);
+      }
+    }
+
+    drawThemeBackdrop(time) {
+      const g = this.graphics;
+      const phase = time * 0.001;
+
+      if (this.themeIndex === 0) {
+        g.lineStyle(1, this.currentTheme.accent, 0.12);
+        const horizon = 390;
+        for (let row = 0; row < 7; row += 1) {
+          const y = horizon + row * row * 5.5 + ((time * 0.018) % 13);
+          g.lineBetween(16, y, 404, y);
+        }
+        for (let x = -120; x <= 540; x += 55) {
+          g.lineBetween(WIDTH / 2, horizon, x, 638);
+        }
+      } else if (this.themeIndex === 1) {
+        for (let band = 0; band < 6; band += 1) {
+          g.fillStyle(this.currentTheme.grid, 0.045 + band * 0.012);
+          g.fillRect(16, 46 + band * 98, 388, 98);
+        }
+        g.lineStyle(2, this.currentTheme.lavaLight, 0.11);
+        for (let crack = 0; crack < 5; crack += 1) {
+          const x = 55 + crack * 78;
+          g.beginPath();
+          g.moveTo(x, 52);
+          for (let y = 52; y <= 638; y += 42) {
+            g.lineTo(x + Math.sin(phase * 0.7 + y * 0.09 + crack) * 13, y);
+          }
+          g.strokePath();
+        }
+      } else if (this.themeIndex === 2) {
+        g.lineStyle(1, this.currentTheme.accent, 0.13);
+        for (let row = 0; row < 6; row += 1) {
+          const y = 105 + row * 92;
+          const offset = (row % 2) * 24;
+          g.lineBetween(24, y, 130 + offset, y);
+          g.lineBetween(130 + offset, y, 130 + offset, y + 31);
+          g.lineBetween(130 + offset, y + 31, 310, y + 31);
+          g.fillStyle(this.currentTheme.lavaLight, 0.24);
+          g.fillRect(306, y + 27, 7, 7);
+        }
+      } else {
+        g.fillStyle(this.currentTheme.accent, 0.035);
+        g.fillCircle(92, 178, 78 + Math.sin(phase) * 4);
+        g.fillStyle(this.currentTheme.lavaLight, 0.025);
+        g.fillCircle(338, 420, 112 + Math.cos(phase * 0.7) * 6);
       }
     }
 
     drawBlock(col, row, color, alpha) {
       const x = BOARD_X + col * CELL;
       const y = BOARD_Y + row * CELL;
+      
+      this.graphics.fillStyle(this.currentTheme.accent, alpha * 0.12);
+      this.graphics.fillRect(x - 1, y - 1, CELL + 2, CELL + 2);
+      
       this.graphics.fillStyle(0x090718, alpha * 0.78);
       this.graphics.fillRect(x + 4, y + 5, CELL - 5, CELL - 5);
       this.graphics.fillStyle(color, alpha);
@@ -484,6 +692,10 @@
       for (const [cellX, cellY] of piece.cells) {
         const x = left + cellX * CELL;
         const y = top + cellY * CELL;
+        
+        this.graphics.fillStyle(this.currentTheme.accent, 0.25);
+        this.graphics.fillRect(x - 2, y - 2, CELL + 4, CELL + 4);
+
         this.graphics.fillStyle(0x090718, 0.7);
         this.graphics.fillRect(x + 5, y + 6, CELL - 5, CELL - 5);
         this.graphics.fillStyle(piece.color, piece.falling ? 0.72 : 1);
@@ -521,7 +733,7 @@
     drawLava(time) {
       const contact = time < this.contactPulseUntil;
       const surface = this.lavaTop + Math.sin(time / 240) * 3;
-      this.graphics.fillStyle(contact ? 0xffcf5a : 0xff5f52, 0.96);
+      this.graphics.fillStyle(contact ? this.currentTheme.lavaLight : this.currentTheme.lava, 0.96);
       this.graphics.beginPath();
       this.graphics.moveTo(0, surface);
       for (let x = 0; x <= WIDTH; x += 14) {
@@ -531,7 +743,7 @@
       this.graphics.lineTo(0, HEIGHT);
       this.graphics.closePath();
       this.graphics.fillPath();
-      this.graphics.fillStyle(0xffcf5a, contact ? 0.92 : 0.55);
+      this.graphics.fillStyle(this.currentTheme.lavaLight, contact ? 0.92 : 0.55);
       for (let x = 0; x < WIDTH; x += 20) {
         this.graphics.fillRect(x, this.lavaTop - 2 + Math.sin(time / 160 + x) * 2, 11, 3);
       }
