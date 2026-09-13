@@ -15,6 +15,7 @@ type GameState = 'ready' | 'playing' | 'paused' | 'gameover';
 type GameCallbacks = {
   onScore: (score: number) => void;
   onLevel: (level: number) => void;
+  onCombo: (combo: number) => void;
   onState: (state: GameState) => void;
   onMessage: (message: string) => void;
   onGameOver: (score: number) => void;
@@ -25,6 +26,8 @@ declare global {
     PixelStackAudio: {
       unlock: () => Promise<boolean>;
       setMuted: (muted: boolean) => void;
+      playFreeze: () => void;
+      playBomb: () => void;
     };
     PixelStackGame: {
       create: (
@@ -74,6 +77,7 @@ function Home() {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(() => Number(window.localStorage.getItem('pixel-stack-best') || 0));
   const [level, setLevel] = useState(1);
+  const [combo, setCombo] = useState(1);
   const [gameState, setGameState] = useState<GameState>('ready');
   const [message, setMessage] = useState('TAP THE LOWER FIELD TO DROP IN');
   const [soundOn, setSoundOn] = useState(true);
@@ -128,6 +132,7 @@ function Home() {
   const callbacks = useMemo<GameCallbacks>(() => ({
     onScore: setScore,
     onLevel: setLevel,
+    onCombo: setCombo,
     onState: (state) => {
       setGameState(state);
       if (state === 'paused') setPaused(true);
@@ -177,6 +182,7 @@ function Home() {
   const restart = () => {
     setScore(0);
     setLevel(1);
+    setCombo(1);
     setPaused(false);
     setGameState('ready');
     setMessage('TAP THE LOWER FIELD TO DROP IN');
@@ -218,6 +224,7 @@ function Home() {
           <div className="pressure-meter" aria-label="Rising lava indicator">
             <span className="meter-label">LEVEL</span>
             <strong className="level-value" data-testid="text-level">{String(level).padStart(2, '0')}</strong>
+            <span className={`combo-value ${combo > 1 ? 'active' : ''}`} data-testid="text-combo">COMBO x{combo}</span>
             <span className="meter-bars"><i /><i /><i /><i /><i /></span>
           </div>
           <div className="stat-block align-right">

@@ -22,6 +22,13 @@
   const TAP_MS = 210;
   const TAP_DISTANCE = 12;
   const SCORE_PER_LEVEL = 1000;
+  const SPECIAL_CHANCE = 0.15;
+  const COMBO_WINDOW_MS = 2000;
+  const MAX_COMBO = 4;
+  const POWER_UPS = {
+    freeze: { color: 0x36b9ff, label: 'FREEZE' },
+    bomb: { color: 0xff315c, label: 'BOMB' },
+  };
 
   const COLORS = {
     I: 0x55f2c6,
@@ -134,6 +141,8 @@
       this.score = 0;
       this.level = 1;
       this.elapsedRun = 0;
+      this.combo = 1;
+      this.lastAnchorAt = 0;
       this.gameState = 'ready';
     }
 
@@ -179,6 +188,8 @@
       this.score = 0;
       this.level = 1;
       this.elapsedRun = 0;
+      this.combo = 1;
+      this.lastAnchorAt = 0;
       this.themeIndex = 0;
       this.currentTheme = { ...THEMES[0] };
       this.startTheme = { ...THEMES[0] };
@@ -190,6 +201,7 @@
       this.setState(nextState);
       this.callbacks.onScore(0);
       this.callbacks.onLevel(1);
+      this.callbacks.onCombo?.(1);
       this.spawnPiece(WIDTH / 2);
     }
 
@@ -309,6 +321,10 @@
     spawnPiece(pointerX = WIDTH / 2) {
       if (this.active || this.gameState === 'gameover') return;
       const type = Phaser.Utils.Array.GetRandom(TYPES);
+      const specialRoll = Phaser.Math.RND.frac();
+      const powerUp = specialRoll < SPECIAL_CHANCE
+        ? (specialRoll < SPECIAL_CHANCE / 2 ? 'freeze' : 'bomb')
+        : null;
       const cells = SHAPES[type].map((cell) => [...cell]);
       const size = dimensions(cells);
       const halfWidth = (size.width * CELL) / 2;
@@ -316,13 +332,16 @@
       this.active = {
         type,
         cells,
-        color: COLORS[type],
+        color: powerUp ? POWER_UPS[powerUp].color : COLORS[type],
+        powerUp,
         x,
         y: this.lavaTop - (size.height * CELL) / 2 - 8,
         falling: false,
         velocityY: 0,
       };
-      this.callbacks.onMessage(`${type} PIECE · TAP TO ROTATE OR DRAG UP`);
+      this.callbacks.onMessage(powerUp
+        ? `${POWER_UPS[powerUp].label} ${type} · TAP TO ROTATE OR DRAG UP`
+        : `${type} PIECE · TAP TO ROTATE OR DRAG UP`);
     }
 
     rotateActive() {
@@ -399,18 +418,95 @@
 
     anchorActive() {
       const piece = this.active;
-      for (const { col, row } of this.activeGridCells(piece)) {
-        this.grid[row][col] = { color: piece.color, type: piece.type };
+      const placedCells = this.activeGridCells(piece);
+      this.updateComboForAnchor();
+      for (const { col, row } of placedCells) {
+        this.grid[row][col] = { color: piece.color, type: piece.type, powerUp: piece.powerUp };
         this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color, 3);
       }
       this.active = null;
-      this.score += 40 * this.level;
+      this.score += 40 * this.level * this.combo;
       this.callbacks.onScore(this.score);
       this.callbacks.onMessage('ANCHOR LOCKED · STRUCTURE STABLE');
       global.PixelStackAudio?.playSnap();
       this.flashBoard(this.currentTheme.accent, 210);
+      this.activatePowerUp(piece.powerUp, placedCells);
       this.clearCompletedRows();
       this.spawnPiece();
+    }
+
+    updateComboForAnchor() {
+      const now = this.time.now;
+      const isQuickPlacement = this.lastAnchorAt > 0 && now - this.lastAnchorAt < COMBO_WINDOW_MS;
+      this.setCombo(isQuickPlacement ? Math.min(MAX_COMBO, this.combo + 1) : 1);
+      this.lastAnchorAt = now;
+      if (this.combo > 1) this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.42);
+    }
+
+    setCombo(value) {
+      if (value === this.combo) return;
+      this.combo = value;
+      this.callbacks.onCombo?.(value);
+    }
+
+    activatePowerUp(powerUp, placedCells) {
+      if (powerUp === 'freeze') {
+        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.time.now + 3000);
+        this.showFloatingText('¡CONGELADO!', POWER_UPS.freeze.color);
+        this.callbacks.onMessage('FREEZE CORE · LAVA STOPPED FOR 3 SECONDS');
+        global.PixelStackAudio?.playFreeze?.();
+        return;
+      }
+      if (powerUp !== 'bomb') return;
+
+      const protectedCells = new Set(placedCells.map(({ col, row }) => `${col}:${row}`));
+      const targets = new Set();
+      for (const { col, row } of placedCells) {
+        for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+          for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+            const nextCol = col + colOffset;
+            const nextRow = row + rowOffset;
+            const key = `${nextCol}:${nextRow}`;
+            if (
+              nextCol >= 0 && nextCol < COLS &&
+              nextRow >= 0 && nextRow < ROWS &&
+              !protectedCells.has(key)
+            ) targets.add(key);
+          }
+        }
+      }
+      for (const key of targets) {
+        const [col, row] = key.split(':').map(Number);
+        const block = this.grid[row][col];
+        if (!block) continue;
+        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, block.color, 7);
+        this.grid[row][col] = null;
+      }
+      this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
+      this.flashBoard(POWER_UPS.bomb.color, 480);
+      this.showFloatingText('¡BOOM!', POWER_UPS.bomb.color);
+      this.callbacks.onMessage('BOMB DETONATED · LAVA FORCED DOWN');
+      global.PixelStackAudio?.playBomb?.();
+    }
+
+    showFloatingText(text, color, y = HEIGHT * 0.5) {
+      const label = this.add.text(WIDTH / 2, y, text, {
+        fontFamily: '"DM Mono", monospace',
+        fontSize: '23px',
+        color: `#${color.toString(16).padStart(6, '0')}`,
+        fontStyle: 'bold',
+        stroke: '#080611',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(11);
+      this.tweens.add({
+        targets: label,
+        y: y - 58,
+        alpha: 0,
+        scale: 1.18,
+        duration: 900,
+        ease: 'Cubic.easeOut',
+        onComplete: () => label.destroy(),
+      });
     }
 
     clearCompletedRows() {
@@ -420,6 +516,9 @@
       }
       if (!complete.length) return;
       global.PixelStackAudio?.playClearLine();
+      this.setCombo(Math.min(MAX_COMBO, this.combo + 1));
+      const clearMultiplier = this.combo;
+      if (this.combo > 1) this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.38);
 
       for (const row of complete) {
         for (let col = 0; col < COLS; col += 1) {
@@ -434,7 +533,7 @@
           this.grid.unshift(Array(COLS).fill(null));
         }
         this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + complete.length * CELL * 2);
-        this.score += complete.length * 500 * this.level;
+        this.score += complete.length * 500 * this.level * clearMultiplier;
         this.callbacks.onScore(this.score);
         this.callbacks.onMessage(`${complete.length} LINE${complete.length > 1 ? 'S' : ''} VENTED · LAVA PUSHED DOWN`);
       });
@@ -448,6 +547,9 @@
 
       if (this.gameState === 'playing') {
         this.elapsedRun += elapsed;
+        if (this.combo > 1 && this.lastAnchorAt > 0 && time - this.lastAnchorAt >= COMBO_WINDOW_MS) {
+          this.setCombo(1);
+        }
         const nextLevel = 1 + Math.floor(this.score / SCORE_PER_LEVEL);
         if (nextLevel > this.level) {
           this.level = nextLevel;
@@ -514,6 +616,8 @@
         this.active = null;
         this.score = Math.max(0, this.score - 25);
         this.callbacks.onScore(this.score);
+        this.setCombo(1);
+        this.lastAnchorAt = 0;
         this.callbacks.onMessage('PIECE LOST TO THE LAVA');
         this.contactPulseUntil = this.time.now + 500;
         this.flashBoard(this.currentTheme.lava, 400);
@@ -529,7 +633,7 @@
         }
       }
       if (touching && time > this.contactPulseUntil) {
-        this.lavaPausedUntil = time + 650;
+        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, time + 650);
         this.contactPulseUntil = time + 1250;
         this.callbacks.onMessage('STRUCTURE CONTACT · PRESSURE PAUSED');
       }
@@ -604,7 +708,7 @@
       for (let row = 0; row < ROWS; row += 1) {
         for (let col = 0; col < COLS; col += 1) {
           const block = this.grid[row][col];
-          if (block) this.drawBlock(col, row, block.color, 1);
+          if (block) this.drawBlock(col, row, block, 1, time);
         }
       }
 
@@ -666,20 +770,21 @@
       }
     }
 
-    drawBlock(col, row, color, alpha) {
+    drawBlock(col, row, block, alpha, time) {
       const x = BOARD_X + col * CELL;
       const y = BOARD_Y + row * CELL;
+      const pulse = block.powerUp === 'bomb' ? 0.72 + Math.sin(time / 85) * 0.28 : 1;
       
-      this.graphics.fillStyle(this.currentTheme.accent, alpha * 0.12);
+      this.graphics.fillStyle(block.powerUp ? block.color : this.currentTheme.accent, alpha * 0.12 * pulse);
       this.graphics.fillRect(x - 1, y - 1, CELL + 2, CELL + 2);
       
       this.graphics.fillStyle(0x090718, alpha * 0.78);
       this.graphics.fillRect(x + 4, y + 5, CELL - 5, CELL - 5);
-      this.graphics.fillStyle(color, alpha);
+      this.graphics.fillStyle(block.color, alpha * pulse);
       this.graphics.fillRect(x + 2, y + 2, CELL - 5, CELL - 5);
       this.graphics.fillStyle(0xffffff, alpha * 0.24);
       this.graphics.fillRect(x + 4, y + 4, CELL - 9, 3);
-      this.graphics.lineStyle(1, color, alpha * 0.85);
+      this.graphics.lineStyle(block.powerUp ? 2 : 1, block.color, alpha * 0.85);
       this.graphics.strokeRect(x + 1, y + 1, CELL - 3, CELL - 3);
     }
 
@@ -687,16 +792,17 @@
       const size = dimensions(piece.cells);
       const left = piece.x - (size.width * CELL) / 2;
       const top = piece.y - (size.height * CELL) / 2;
+      const pulse = piece.powerUp === 'bomb' ? 0.65 + Math.sin(this.time.now / 70) * 0.35 : 1;
       for (const [cellX, cellY] of piece.cells) {
         const x = left + cellX * CELL;
         const y = top + cellY * CELL;
         
-        this.graphics.fillStyle(this.currentTheme.accent, 0.25);
+        this.graphics.fillStyle(piece.powerUp ? piece.color : this.currentTheme.accent, 0.25 * pulse);
         this.graphics.fillRect(x - 2, y - 2, CELL + 4, CELL + 4);
 
         this.graphics.fillStyle(0x090718, 0.7);
         this.graphics.fillRect(x + 5, y + 6, CELL - 5, CELL - 5);
-        this.graphics.fillStyle(piece.color, piece.falling ? 0.72 : 1);
+        this.graphics.fillStyle(piece.color, (piece.falling ? 0.72 : 1) * pulse);
         this.graphics.fillRect(x + 2, y + 2, CELL - 5, CELL - 5);
         this.graphics.fillStyle(0xffffff, 0.3);
         this.graphics.fillRect(x + 4, y + 4, CELL - 9, 3);

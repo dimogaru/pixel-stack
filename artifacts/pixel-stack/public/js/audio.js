@@ -90,6 +90,16 @@
       });
     }
 
+    playFreeze() {
+      this.tone({ frequency: 1040, endFrequency: 420, duration: 0.34, type: 'sine', volume: 0.42 });
+      this.tone({ frequency: 780, endFrequency: 260, duration: 0.3, start: 0.06, type: 'square', volume: 0.22 });
+    }
+
+    playBomb() {
+      this.tone({ frequency: 150, endFrequency: 42, duration: 0.42, type: 'sawtooth', volume: 0.78 });
+      this.tone({ frequency: 85, endFrequency: 32, duration: 0.5, start: 0.035, type: 'square', volume: 0.58 });
+    }
+
     playGameOver() {
       [392, 330, 247, 165].forEach((frequency, index) => {
         this.tone({
