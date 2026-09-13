@@ -190,7 +190,7 @@
       this.setState(nextState);
       this.callbacks.onScore(0);
       this.callbacks.onLevel(1);
-      this.callbacks.onMessage('TAP THE LOWER FIELD TO DROP IN');
+      this.spawnPiece(WIDTH / 2);
     }
 
     setState(state) {
@@ -257,15 +257,10 @@
 
     onPointerDown(pointer) {
       if (this.gameState === 'paused' || this.gameState === 'gameover') return;
+      if (!this.active || !this.pointerHitsActive(pointer)) return;
       global.PixelStackAudio?.unlock();
       this.startRun();
 
-      if (!this.active) {
-        if (pointer.y < Math.max(this.lavaTop - 116, BOARD_Y + 150)) return;
-        this.spawnPiece(pointer.x);
-      }
-
-      if (!this.active || !this.pointerHitsActive(pointer)) return;
       this.dragging = true;
       this.pointerStart = { x: pointer.x, y: pointer.y, time: this.time.now };
       this.dragOffset = {
@@ -311,7 +306,8 @@
       );
     }
 
-    spawnPiece(pointerX) {
+    spawnPiece(pointerX = WIDTH / 2) {
+      if (this.active || this.gameState === 'gameover') return;
       const type = Phaser.Utils.Array.GetRandom(TYPES);
       const cells = SHAPES[type].map((cell) => [...cell]);
       const size = dimensions(cells);
@@ -414,6 +410,7 @@
       global.PixelStackAudio?.playSnap();
       this.flashBoard(this.currentTheme.accent, 210);
       this.clearCompletedRows();
+      this.spawnPiece();
     }
 
     clearCompletedRows() {
@@ -520,6 +517,7 @@
         this.callbacks.onMessage('PIECE LOST TO THE LAVA');
         this.contactPulseUntil = this.time.now + 500;
         this.flashBoard(this.currentTheme.lava, 400);
+        this.spawnPiece();
       }
     }
 
