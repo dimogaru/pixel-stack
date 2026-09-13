@@ -1,10 +1,12 @@
-# [Project name]
+# Pixel Stack
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A mobile-first Phaser 3 arcade PWA where players drag neon pieces upward to build a descending tower before rising lava reaches the ceiling.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/pixel-stack run dev` — run the Pixel Stack web app through its managed workflow
+- `pnpm --filter @workspace/pixel-stack run typecheck` — check the game frontend
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -22,15 +24,20 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/pixel-stack/src/App.tsx` — Phaser scene, game rules, and React HUD
+- `artifacts/pixel-stack/src/index.css` — responsive neon visual system
+- `artifacts/pixel-stack/public/manifest.json` — installable PWA metadata
+- `artifacts/pixel-stack/public/sw.js` — offline application cache
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The game is client-only for the prototype; the shared Express API remains available for future leaderboards or accounts.
+- Phaser is loaded from jsDelivr and cached by the Service Worker so installed builds can continue offline.
+- React owns the surrounding HUD and overlays while Phaser owns the real-time playfield and pointer interactions.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Players tap near the lava to spawn a piece, drag it upward, and release to lock it beneath the ceiling or existing tower. Lava rises continuously, briefly pauses on tower contact, and ends the run when it reaches the ceiling. The app tracks a local best score and supports pause, restart, replay, and PWA installation.
 
 ## User preferences
 

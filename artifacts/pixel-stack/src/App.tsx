@@ -47,7 +47,6 @@ class PixelStackScene extends Phaser.Scene {
   private gameState: GameState = 'ready';
   private lastTime = 0;
   private spawnIndex = 0;
-  private gameOverTimer?: any;
 
   constructor(callbacks: GameCallbacks) {
     super('PixelStack');
@@ -74,9 +73,6 @@ class PixelStackScene extends Phaser.Scene {
   }
 
   reset(nextState: GameState = 'ready') {
-    if (this.gameOverTimer) {
-      window.clearTimeout(this.gameOverTimer);
-    }
     this.tower = [];
     this.active = null;
     this.dragging = false;
@@ -204,9 +200,6 @@ class PixelStackScene extends Phaser.Scene {
       this.lavaPausedUntil = this.time.now + 1000;
       this.contactPulseUntil = this.time.now + 1000;
       this.callbacks.onMessage('LAVA CONTACT · ONE MORE SECOND');
-      this.gameOverTimer = window.setTimeout(() => {
-        if (this.gameState === 'playing' && this.tower.length) this.endRun();
-      }, 960);
     }
   }
 
@@ -221,8 +214,7 @@ class PixelStackScene extends Phaser.Scene {
     this.lastTime = time;
     if (this.gameState === 'playing' && time > this.lavaPausedUntil) {
       this.lavaTop -= elapsed * 0.008;
-      const bottom = this.tower.length ? Math.max(...this.tower.map((item) => item.y + item.h / 2)) : 0;
-      if (bottom > this.lavaTop + 5) this.endRun();
+      if (this.lavaTop <= 78) this.endRun();
     }
     for (const spark of this.sparks) {
       spark.y -= (spark.speed * elapsed) / 1000;
