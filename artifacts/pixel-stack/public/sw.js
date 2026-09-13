@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pixel-stack-v1';
+const CACHE_NAME = 'pixel-stack-v2';
 const PHASER_URL = 'https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js';
 const APP_SHELL = [
   './',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './favicon.svg',
   './icon-192.svg',
   './icon-512.svg',
+  './js/game.js',
   PHASER_URL,
 ];
 

@@ -7,344 +7,56 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
-declare const Phaser: any;
-
 const queryClient = new QueryClient();
 
 type GameState = 'ready' | 'playing' | 'paused' | 'gameover';
 
 type GameCallbacks = {
   onScore: (score: number) => void;
+  onLevel: (level: number) => void;
   onState: (state: GameState) => void;
   onMessage: (message: string) => void;
 };
 
-type Piece = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  kind: number;
-  color: number;
-  rotation: number;
-};
-
-const COLORS = [0x55f2c6, 0xff5f52, 0xffcf5a, 0x8292ff, 0xf06cff];
-
-class PixelStackScene extends Phaser.Scene {
-  private callbacks: GameCallbacks;
-  private graphics!: any;
-  private sparks: Array<{ x: number; y: number; size: number; speed: number; alpha: number }> = [];
-  private tower: Piece[] = [];
-  private active: Piece | null = null;
-  private dragging = false;
-  private dragMoved = false;
-  private dragOffset = { x: 0, y: 0 };
-  private lavaTop = 621;
-  private lavaPausedUntil = 0;
-  private contactPulseUntil = 0;
-  private score = 0;
-  private gameState: GameState = 'ready';
-  private lastTime = 0;
-  private spawnIndex = 0;
-
-  constructor(callbacks: GameCallbacks) {
-    super('PixelStack');
-    this.callbacks = callbacks;
-  }
-
-  create() {
-    this.graphics = this.add.graphics();
-    this.input.on('pointerdown', (pointer: any) => this.pointerDown(pointer));
-    this.input.on('pointermove', (pointer: any) => this.pointerMove(pointer));
-    this.input.on('pointerup', () => this.pointerUp());
-    this.input.on('pointerout', () => this.pointerUp());
-
-    for (let index = 0; index < 54; index += 1) {
-      this.sparks.push({
-        x: Phaser.Math.Between(24, 396),
-        y: Phaser.Math.Between(52, 625),
-        size: Phaser.Math.FloatBetween(0.6, 2.2),
-        speed: Phaser.Math.FloatBetween(2, 8),
-        alpha: Phaser.Math.FloatBetween(0.16, 0.68),
-      });
-    }
-    this.reset('ready');
-  }
-
-  reset(nextState: GameState = 'ready') {
-    this.tower = [];
-    this.active = null;
-    this.dragging = false;
-    this.dragMoved = false;
-    this.lavaTop = 621;
-    this.lavaPausedUntil = 0;
-    this.contactPulseUntil = 0;
-    this.score = 0;
-    this.spawnIndex = 0;
-    this.lastTime = 0;
-    this.setState(nextState);
-    this.callbacks.onScore(0);
-    this.callbacks.onMessage(nextState === 'ready' ? 'TAP THE LOWER FIELD TO DROP IN' : 'NEW RUN · BUILD UPWARD');
-  }
-
-  startRun() {
-    if (this.gameState === 'ready') {
-      this.setState('playing');
-      this.callbacks.onMessage('DRAG THE PILLAR UP · RELEASE TO LOCK');
-    }
-  }
-
-  togglePause() {
-    if (this.gameState === 'gameover' || this.gameState === 'ready') return;
-    if (this.gameState === 'paused') {
-      this.setState('playing');
-      this.callbacks.onMessage('LAVA IS MOVING · KEEP BUILDING');
-    } else {
-      this.setState('paused');
-      this.callbacks.onMessage('RUN FROZEN · RESUME WHEN READY');
-    }
-  }
-
-  private setState(state: GameState) {
-    this.gameState = state;
-    this.callbacks.onState(state);
-  }
-
-  private pointerDown(pointer: any) {
-    if (this.gameState === 'paused' || this.gameState === 'gameover') return;
-    const x = Phaser.Math.Clamp(pointer.x, 28, 392);
-    const y = Phaser.Math.Clamp(pointer.y, 42, 648);
-
-    if (this.active) {
-      const dx = Math.abs(pointer.x - this.active.x);
-      const dy = Math.abs(pointer.y - this.active.y);
-      if (dx < this.active.w && dy < this.active.h + 18) {
-        this.dragging = true;
-        this.dragMoved = false;
-        this.dragOffset = { x: pointer.x - this.active.x, y: pointer.y - this.active.y };
-      }
-      return;
-    }
-
-    if (y > this.lavaTop - 90) {
-      this.startRun();
-      this.spawnPiece(x);
-      this.dragging = true;
-      this.dragMoved = false;
-      this.dragOffset = { x: 0, y: 0 };
-    } else if (this.gameState === 'ready') {
-      this.startRun();
-    }
-  }
-
-  private pointerMove(pointer: any) {
-    if (!this.dragging || !this.active || this.gameState !== 'playing') return;
-    const piece = this.active;
-    this.dragMoved = true;
-    piece.x = Phaser.Math.Clamp(pointer.x - this.dragOffset.x, 34 + piece.w / 2, 386 - piece.w / 2);
-    piece.y = Phaser.Math.Clamp(pointer.y - this.dragOffset.y, 88 + piece.h / 2, this.lavaTop - piece.h / 2 - 10);
-    this.callbacks.onMessage(piece.y < 180 ? 'CEILING LOCK ZONE' : 'RELEASE TO ANCHOR');
-  }
-
-  private pointerUp() {
-    if (!this.dragging || !this.active || this.gameState !== 'playing') return;
-    this.dragging = false;
-    if (!this.dragMoved) {
-      this.callbacks.onMessage('PIECE READY · DRAG UP TO AIM');
-      return;
-    }
-    this.anchorPiece();
-  }
-
-  private spawnPiece(x: number) {
-    const kind = this.spawnIndex % 5;
-    this.spawnIndex += 1;
-    const dimensions = [
-      { w: 74, h: 26 },
-      { w: 44, h: 44 },
-      { w: 84, h: 22 },
-      { w: 34, h: 62 },
-      { w: 60, h: 34 },
-    ][kind];
-    this.active = {
-      x,
-      y: this.lavaTop - 54,
-      ...dimensions,
-      kind,
-      color: COLORS[kind],
-      rotation: kind === 1 ? 45 : kind === 4 ? -12 : 0,
+declare global {
+  interface Window {
+    PixelStackGame: {
+      create: (
+        parent: HTMLElement,
+        callbacks: GameCallbacks,
+      ) => {
+        game: { destroy: (removeCanvas: boolean) => void };
+        scene: { gameState: GameState; togglePause: () => void };
+      };
     };
-    this.callbacks.onMessage('DRAG THE PILLAR UP · RELEASE TO LOCK');
-  }
-
-  private anchorPiece() {
-    if (!this.active) return;
-    const piece = this.active;
-    const towerBottom = this.tower.length
-      ? Math.max(...this.tower.map((item) => item.y + item.h / 2))
-      : 86;
-    const targetY = this.tower.length ? towerBottom + piece.h / 2 + 5 : 86 + piece.h / 2;
-    piece.y = Math.min(Math.max(piece.y, 86 + piece.h / 2), targetY);
-    this.tower.push(piece);
-    this.active = null;
-
-    this.score += 10 + Math.min(this.tower.length, 8);
-    this.callbacks.onScore(this.score);
-    this.callbacks.onMessage(this.tower.length === 1 ? 'FIRST ANCHOR · KEEP IT TIGHT' : 'LOCKED · THE LAVA IS RISING');
-    this.lavaTop -= 7 + Math.min(this.tower.length, 4);
-    this.contactPulseUntil = this.time.now + 420;
-
-    const newBottom = Math.max(...this.tower.map((item) => item.y + item.h / 2));
-    if (newBottom >= this.lavaTop - 7) {
-      this.lavaPausedUntil = this.time.now + 1000;
-      this.contactPulseUntil = this.time.now + 1000;
-      this.callbacks.onMessage('LAVA CONTACT · ONE MORE SECOND');
-    }
-  }
-
-  private endRun() {
-    this.setState('gameover');
-    this.callbacks.onMessage('THE STACK COLLAPSED · TRY A NEW LINE');
-  }
-
-  update(time: number, delta: number) {
-    if (!this.graphics) return;
-    const elapsed = this.lastTime ? Math.min(delta, 40) : 16;
-    this.lastTime = time;
-    if (this.gameState === 'playing' && time > this.lavaPausedUntil) {
-      this.lavaTop -= elapsed * 0.008;
-      if (this.lavaTop <= 78) this.endRun();
-    }
-    for (const spark of this.sparks) {
-      spark.y -= (spark.speed * elapsed) / 1000;
-      if (spark.y < 42) spark.y = 624;
-    }
-    this.draw(time);
-  }
-
-  private draw(time: number) {
-    const g = this.graphics;
-    g.clear();
-
-    // Deep violet playfield and subtle technical grid.
-    g.fillStyle(0x130f28, 1);
-    g.fillRect(0, 0, 420, 720);
-    g.fillStyle(0x1b1640, 0.56);
-    g.fillRect(16, 46, 388, 592);
-    g.lineStyle(1, 0x463a72, 0.18);
-    for (let x = 28; x < 405; x += 32) g.lineBetween(x, 60, x, 636);
-    for (let y = 76; y < 638; y += 32) g.lineBetween(20, y, 400, y);
-
-    // Ambient particles.
-    for (const spark of this.sparks) {
-      g.fillStyle(0xaea9ff, spark.alpha);
-      g.fillCircle(spark.x, spark.y, spark.size);
-    }
-
-    // Ceiling rail and lock zone.
-    g.fillStyle(0x4d4580, 0.44);
-    g.fillRect(22, 76, 376, 2);
-    g.fillStyle(0x55f2c6, 0.75);
-    g.fillRect(22, 76, 72, 2);
-    g.fillStyle(0x55f2c6, 0.12);
-    g.fillRect(22, 79, 376, 88);
-    g.lineStyle(1, 0x55f2c6, 0.22);
-    g.strokeRect(22, 79, 376, 88);
-
-    // Vertical guide line.
-    g.lineStyle(1, 0x8292ff, 0.22);
-    g.lineBetween(210, 98, 210, this.lavaTop - 9);
-
-    // Tower shadows and anchors.
-    for (const piece of this.tower) this.drawPiece(piece, false);
-    if (this.active) {
-      const ghost = { ...this.active, y: this.tower.length ? Math.max(...this.tower.map((item) => item.y + item.h / 2)) + this.active.h / 2 + 5 : 86 + this.active.h / 2 };
-      if (ghost.y < this.lavaTop - 4) this.drawPiece(ghost, true, 0.18);
-      this.drawPiece(this.active, true, 1);
-      g.lineStyle(1, this.active.color, 0.45);
-      g.lineBetween(this.active.x, this.active.y + this.active.h / 2 + 12, this.active.x, this.lavaTop - 7);
-    }
-
-    // Lava body and animated surface.
-    const contact = time < this.contactPulseUntil;
-    const surface = this.lavaTop + Math.sin(time / 240) * 3;
-    g.fillStyle(contact ? 0xffcf5a : 0xff5f52, 0.96);
-    g.beginPath();
-    g.moveTo(0, surface);
-    for (let x = 0; x <= 420; x += 14) {
-      g.lineTo(x, this.lavaTop + Math.sin(time / 230 + x / 26) * (contact ? 6 : 3));
-    }
-    g.lineTo(420, 720);
-    g.lineTo(0, 720);
-    g.closePath();
-    g.fillPath();
-    g.fillStyle(0xffcf5a, contact ? 0.92 : 0.55);
-    for (let x = 0; x < 420; x += 20) {
-      g.fillRect(x, this.lavaTop - 2 + Math.sin(time / 160 + x) * 2, 11, 3);
-    }
-    g.fillStyle(0x7d214b, 0.4);
-    g.fillRect(0, this.lavaTop + 22, 420, 8);
-
-    if (this.gameState === 'paused') {
-      g.fillStyle(0x130f28, 0.56);
-      g.fillRect(16, 46, 388, 592);
-    }
-  }
-
-  private drawPiece(piece: Piece, active: boolean, alpha = 1) {
-    const g = this.graphics;
-    const color = piece.color;
-    const x = piece.x - piece.w / 2;
-    const y = piece.y - piece.h / 2;
-    g.save();
-    g.translateCanvas(piece.x, piece.y);
-    g.rotateCanvas((piece.rotation * Math.PI) / 180);
-    g.fillStyle(0x0a0819, alpha * 0.7);
-    g.fillRect(-piece.w / 2 + 4, -piece.h / 2 + 6, piece.w, piece.h);
-    g.fillStyle(color, alpha);
-    g.fillRect(-piece.w / 2, -piece.h / 2, piece.w, piece.h);
-    g.fillStyle(0xffffff, alpha * 0.22);
-    g.fillRect(-piece.w / 2, -piece.h / 2, piece.w, 4);
-    g.fillStyle(0x130f28, alpha * 0.24);
-    g.fillRect(-piece.w / 2 + 7, -piece.h / 2 + 8, Math.max(piece.w - 18, 4), 3);
-    g.lineStyle(active ? 2 : 1, active ? 0xffffff : color, alpha * (active ? 0.84 : 0.42));
-    g.strokeRect(-piece.w / 2, -piece.h / 2, piece.w, piece.h);
-    if (active) {
-      g.lineStyle(1, 0xffffff, 0.34);
-      g.strokeRect(-piece.w / 2 - 4, -piece.h / 2 - 4, piece.w + 8, piece.h + 8);
-    }
-    g.restore();
   }
 }
 
 function GameCanvas({ callbacks, paused }: { callbacks: GameCallbacks; paused: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const gameRef = useRef<any>(null);
+  const engineRef = useRef<ReturnType<typeof window.PixelStackGame.create> | null>(null);
 
   useEffect(() => {
-    if (!hostRef.current || typeof Phaser === 'undefined') return;
-    const game = new Phaser.Game({
-      type: Phaser.CANVAS,
-      width: 420,
-      height: 720,
-      parent: hostRef.current,
-      transparent: false,
-      backgroundColor: '#130f28',
-      render: { antialias: true, pixelArt: false, roundPixels: true },
-      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-      scene: new PixelStackScene(callbacks),
-    });
-    gameRef.current = game;
+    if (!hostRef.current || !window.PixelStackGame) return;
+    const engine = window.PixelStackGame.create(hostRef.current, callbacks);
+    engineRef.current = engine;
+
+    const preventTouchNavigation = (event: TouchEvent) => event.preventDefault();
+    const host = hostRef.current;
+    host.addEventListener('touchstart', preventTouchNavigation, { passive: false });
+    host.addEventListener('touchmove', preventTouchNavigation, { passive: false });
+
     return () => {
-      game.destroy(true);
-      gameRef.current = null;
+      host.removeEventListener('touchstart', preventTouchNavigation);
+      host.removeEventListener('touchmove', preventTouchNavigation);
+      engine.game.destroy(true);
+      engineRef.current = null;
     };
   }, [callbacks]);
 
   useEffect(() => {
-    const scene = gameRef.current?.scene?.getScene('PixelStack') as PixelStackScene | undefined;
-    if (scene && scene['gameState'] !== 'gameover' && scene['gameState'] !== 'ready') {
+    const scene = engineRef.current?.scene;
+    if (scene && scene.gameState !== 'gameover' && scene.gameState !== 'ready') {
       scene.togglePause();
     }
   }, [paused]);
@@ -355,6 +67,7 @@ function GameCanvas({ callbacks, paused }: { callbacks: GameCallbacks; paused: b
 function Home() {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(() => Number(window.localStorage.getItem('pixel-stack-best') || 0));
+  const [level, setLevel] = useState(1);
   const [gameState, setGameState] = useState<GameState>('ready');
   const [message, setMessage] = useState('TAP THE LOWER FIELD TO DROP IN');
   const [soundOn, setSoundOn] = useState(true);
@@ -370,6 +83,7 @@ function Home() {
 
   const callbacks = useMemo<GameCallbacks>(() => ({
     onScore: setScore,
+    onLevel: setLevel,
     onState: (state) => {
       setGameState(state);
       if (state === 'paused') setPaused(true);
@@ -380,6 +94,7 @@ function Home() {
 
   const restart = () => {
     setScore(0);
+    setLevel(1);
     setPaused(false);
     setGameState('ready');
     setMessage('TAP THE LOWER FIELD TO DROP IN');
@@ -415,7 +130,8 @@ function Home() {
             <strong className="stat-value" data-testid="text-score">{String(score).padStart(4, '0')}</strong>
           </div>
           <div className="pressure-meter" aria-label="Rising lava indicator">
-            <span className="meter-label">FLUID LEVEL</span>
+            <span className="meter-label">LEVEL</span>
+            <strong className="level-value" data-testid="text-level">{String(level).padStart(2, '0')}</strong>
             <span className="meter-bars"><i /><i /><i /><i /><i /></span>
           </div>
           <div className="stat-block align-right">

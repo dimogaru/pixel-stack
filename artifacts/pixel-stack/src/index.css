@@ -116,6 +116,7 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .stat-value { color: #f5f0dd; font: 500 25px var(--app-font-mono); letter-spacing: .05em; }
 .stat-value.best { color: #ffcf5a; }
 .pressure-meter { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.level-value { color: #55f2c6; font: 500 17px var(--app-font-mono); line-height: 1; letter-spacing: .08em; }
 .meter-bars { display: flex; gap: 4px; }
 .meter-bars i { display: block; width: 17px; height: 4px; background: #ff5f52; opacity: .72; transform: skewX(-25deg); }
 .meter-bars i:nth-child(2), .meter-bars i:nth-child(3) { opacity: .45; }

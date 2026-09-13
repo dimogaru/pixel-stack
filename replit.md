@@ -24,7 +24,8 @@ A mobile-first Phaser 3 arcade PWA where players drag neon pieces upward to buil
 
 ## Where things live
 
-- `artifacts/pixel-stack/src/App.tsx` — Phaser scene, game rules, and React HUD
+- `artifacts/pixel-stack/public/js/game.js` — Phaser scene, tetromino grid, gravity, anchoring, line clears, scoring, levels, and lava
+- `artifacts/pixel-stack/src/App.tsx` — React HUD, overlays, controls, and Phaser lifecycle
 - `artifacts/pixel-stack/src/index.css` — responsive neon visual system
 - `artifacts/pixel-stack/public/manifest.json` — installable PWA metadata
 - `artifacts/pixel-stack/public/sw.js` — offline application cache
@@ -37,7 +38,7 @@ A mobile-first Phaser 3 arcade PWA where players drag neon pieces upward to buil
 
 ## Product
 
-Players tap near the lava to spawn a piece, drag it upward, and release to lock it beneath the ceiling or existing tower. Lava rises continuously, briefly pauses on tower contact, and ends the run when it reaches the ceiling. The app tracks a local best score and supports pause, restart, replay, and PWA installation.
+Players tap near the lava to spawn a random tetromino, tap quickly to rotate it, then drag and release it. Supported pieces lock into a shared grid; unsupported pieces fall into the lava. Completed rows flash, emit particles, score bonus points, and push the lava down. Lava speed increases with each timed level. The app tracks a local best score and supports pause, restart, replay, and PWA installation.
 
 ## User preferences
 
