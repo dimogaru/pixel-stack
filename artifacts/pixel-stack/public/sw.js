@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pixel-stack-v3';
+const CACHE_NAME = 'pixel-stack-v4';
 const PHASER_URL = 'https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js';
 const APP_SHELL = [
   './',
@@ -31,6 +31,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  if (url.pathname.startsWith('/api/')) return;
   if (request.url === PHASER_URL) {
     event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
     return;

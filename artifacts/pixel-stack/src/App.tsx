@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Pause, Play, RotateCcw, Volume2, VolumeX, Flame, MousePointer2, ArrowUp, Crosshair } from 'lucide-react';
+import type { HighScore } from '@workspace/api-client-react';
+import { Pause, Play, RotateCcw, Volume2, VolumeX, Flame, MousePointer2, ArrowUp, Crosshair, Trophy, X } from 'lucide-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -16,6 +17,7 @@ type GameCallbacks = {
   onLevel: (level: number) => void;
   onState: (state: GameState) => void;
   onMessage: (message: string) => void;
+  onGameOver: (score: number) => void;
 };
 
 declare global {
@@ -77,6 +79,13 @@ function Home() {
   const [soundOn, setSoundOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [runKey, setRunKey] = useState(0);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [scores, setScores] = useState<HighScore[]>([]);
+  const [leaderboardStatus, setLeaderboardStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [qualifyingScore, setQualifyingScore] = useState<number | null>(null);
+  const [nickname, setNickname] = useState('');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
+  const [submitMessage, setSubmitMessage] = useState('');
 
   useEffect(() => {
     window.PixelStackAudio?.setMuted(!soundOn);
@@ -89,6 +98,33 @@ function Home() {
     }
   }, [score, best]);
 
+  const loadScores = useCallback(async (open = false) => {
+    if (open) setLeaderboardOpen(true);
+    setLeaderboardStatus('loading');
+    try {
+      const response = await fetch('/api/scores', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Could not load scores');
+      const data = await response.json() as HighScore[];
+      setScores(data);
+      setLeaderboardStatus('idle');
+      return data;
+    } catch {
+      setLeaderboardStatus('error');
+      return null;
+    }
+  }, []);
+
+  const checkQualification = useCallback(async (finalScore: number) => {
+    setQualifyingScore(null);
+    setSubmitStatus('idle');
+    setSubmitMessage('');
+    setNickname('');
+    const currentScores = await loadScores();
+    if (!currentScores) return;
+    const qualifies = currentScores.length < 10 || finalScore > currentScores[currentScores.length - 1].score;
+    if (qualifies) setQualifyingScore(finalScore);
+  }, [loadScores]);
+
   const callbacks = useMemo<GameCallbacks>(() => ({
     onScore: setScore,
     onLevel: setLevel,
@@ -98,7 +134,45 @@ function Home() {
       if (state === 'playing') setPaused(false);
     },
     onMessage: setMessage,
-  }), []);
+    onGameOver: (finalScore) => {
+      void checkQualification(finalScore);
+    },
+  }), [checkQualification]);
+
+  const submitScore = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (qualifyingScore === null || submitStatus === 'submitting') return;
+
+    const cleanNickname = nickname.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,10}$/.test(cleanNickname)) {
+      setSubmitStatus('error');
+      setSubmitMessage('USA 1–10 LETRAS, NÚMEROS, _ O -');
+      return;
+    }
+
+    setSubmitStatus('submitting');
+    setSubmitMessage('');
+    try {
+      const response = await fetch('/api/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: cleanNickname, score: qualifyingScore }),
+      });
+      if (response.status === 409) {
+        setQualifyingScore(null);
+        setSubmitStatus('error');
+        setSubmitMessage('EL TOP 10 HA CAMBIADO. TU MARCA YA NO CLASIFICA.');
+        return;
+      }
+      if (!response.ok) throw new Error('Could not submit score');
+      setSubmitStatus('submitted');
+      setSubmitMessage('MARCA REGISTRADA EN LA RED GLOBAL');
+      await loadScores();
+    } catch {
+      setSubmitStatus('error');
+      setSubmitMessage('NO SE PUDO GUARDAR. INTÉNTALO DE NUEVO.');
+    }
+  };
 
   const restart = () => {
     setScore(0);
@@ -106,6 +180,10 @@ function Home() {
     setPaused(false);
     setGameState('ready');
     setMessage('TAP THE LOWER FIELD TO DROP IN');
+    setQualifyingScore(null);
+    setSubmitStatus('idle');
+    setSubmitMessage('');
+    setNickname('');
     setRunKey((value) => value + 1);
   };
 
@@ -179,8 +257,32 @@ function Home() {
                 <p>You held the line for <b>{score} points</b>.</p>
                 <div className="result-row"><span>THIS RUN</span><strong>{String(score).padStart(4, '0')}</strong></div>
                 <div className="result-row"><span>ALL-TIME BEST</span><strong className="best">{String(best).padStart(4, '0')}</strong></div>
+                {qualifyingScore !== null && submitStatus !== 'submitted' && (
+                  <form className="score-entry" onSubmit={submitScore}>
+                    <label htmlFor="nickname">TOP 10 · IDENTIFÍCATE</label>
+                    <div className="score-entry-row">
+                      <input
+                        id="nickname"
+                        value={nickname}
+                        onChange={(event) => setNickname(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 10))}
+                        maxLength={10}
+                        placeholder="APODO"
+                        autoComplete="nickname"
+                        autoFocus
+                        data-testid="input-nickname"
+                      />
+                      <button type="submit" disabled={submitStatus === 'submitting'} data-testid="button-submit-score">
+                        {submitStatus === 'submitting' ? '...' : 'SEND'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {submitMessage && <p className={`score-message ${submitStatus}`} data-testid="text-score-submit-status">{submitMessage}</p>}
                 <button className="primary-button" onClick={restart} data-testid="button-replay">
                   <RotateCcw size={16} /> REPLAY
+                </button>
+                <button className="secondary-button" onClick={() => void loadScores(true)} data-testid="button-gameover-leaderboard">
+                  <Trophy size={15} /> TOP JUGADORES
                 </button>
               </div>
             </div>
@@ -192,7 +294,9 @@ function Home() {
             {paused ? <Play size={15} /> : <Pause size={15} />}
             {paused ? 'RESUME' : 'PAUSE'}
           </button>
-          <div className="run-rule"><span /><span /><span /></div>
+          <button className="control-button leaderboard-trigger" onClick={() => void loadScores(true)} data-testid="button-leaderboard">
+            <Trophy size={15} /> TOP JUGADORES
+          </button>
           <button className="control-button" onClick={restart} data-testid="button-restart">
             <RotateCcw size={15} /> NEW RUN
           </button>
@@ -205,6 +309,37 @@ function Home() {
           <span className="version">PS–01</span>
         </footer>
       </section>
+      {leaderboardOpen && (
+        <div className="leaderboard-overlay" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title" data-testid="overlay-leaderboard">
+          <section className="leaderboard-card">
+            <button className="leaderboard-close" onClick={() => setLeaderboardOpen(false)} aria-label="Cerrar clasificación" data-testid="button-close-leaderboard">
+              <X size={18} />
+            </button>
+            <span className="overlay-kicker">GLOBAL NETWORK</span>
+            <h2 id="leaderboard-title">Top Jugadores</h2>
+            <p className="leaderboard-subtitle">LAS 10 PILAS QUE MÁS RESISTIERON</p>
+            {leaderboardStatus === 'loading' && <div className="leaderboard-state">CARGANDO SEÑAL...</div>}
+            {leaderboardStatus === 'error' && (
+              <div className="leaderboard-state error">
+                SIN CONEXIÓN CON EL RANKING
+                <button onClick={() => void loadScores()}>REINTENTAR</button>
+              </div>
+            )}
+            {leaderboardStatus === 'idle' && scores.length === 0 && <div className="leaderboard-state">AÚN NO HAY MARCAS</div>}
+            {leaderboardStatus === 'idle' && scores.length > 0 && (
+              <ol className="leaderboard-list">
+                {scores.map((entry, index) => (
+                  <li key={entry.id} className={index < 3 ? `rank-${index + 1}` : ''}>
+                    <span className="rank">{String(index + 1).padStart(2, '0')}</span>
+                    <strong>{entry.nickname}</strong>
+                    <span className="leader-score">{String(entry.score).padStart(4, '0')}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </div>
+      )}
       <aside className="desktop-note">
         <p className="eyebrow">ONE-HAND ARCADE / 001</p>
         <h2>Don’t let the<br /><em>pressure</em> win.</h2>

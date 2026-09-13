@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: scores
+    description: Pixel Stack global leaderboard
 paths:
   /healthz:
     get:
@@ -24,6 +26,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /scores:
+    get:
+      operationId: listScores
+      tags: [scores]
+      summary: List the global leaderboard
+      responses:
+        "200":
+          description: The ten highest scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HighScore"
+    post:
+      operationId: submitScore
+      tags: [scores]
+      summary: Submit a qualifying score
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreInput"
+      responses:
+        "201":
+          description: Score accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HighScore"
+        "400":
+          description: Invalid score
+        "409":
+          description: Score did not qualify
 components:
   schemas:
     HealthStatus:
@@ -33,4 +70,31 @@ components:
           type: string
       required:
         - status
+    HighScore:
+      type: object
+      required: [id, nickname, score, created_at]
+      properties:
+        id:
+          type: integer
+        nickname:
+          type: string
+          maxLength: 10
+        score:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+    ScoreInput:
+      type: object
+      additionalProperties: false
+      required: [nickname, score]
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 10
+          pattern: "^[A-Za-z0-9_-]+$"
+        score:
+          type: integer
+          minimum: 0
 

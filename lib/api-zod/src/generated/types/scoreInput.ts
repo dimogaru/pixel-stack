@@ -5,18 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export interface HighScore {
-  id: number;
-  /** @maxLength 10 */
-  nickname: string;
-  /** @minimum 0 */
-  score: number;
-  created_at: string;
-}
 
 export interface ScoreInput {
   /**
@@ -28,4 +16,3 @@ export interface ScoreInput {
   /** @minimum 0 */
   score: number;
 }
-

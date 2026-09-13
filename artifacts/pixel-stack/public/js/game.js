@@ -397,6 +397,7 @@
       global.PixelStackAudio?.playGameOver();
       this.flashBoard(0xff5f52, 620);
       this.callbacks.onMessage('FLUID BREACH · RUN ENDED');
+      this.callbacks.onGameOver?.(this.score);
     }
 
     flashBoard(color, duration) {

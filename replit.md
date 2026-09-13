@@ -26,6 +26,9 @@ A mobile-first Phaser 3 arcade PWA where players drag neon pieces upward to buil
 
 - `artifacts/pixel-stack/public/js/game.js` — Phaser scene, tetromino grid, gravity, anchoring, line clears, scoring, levels, and lava
 - `artifacts/pixel-stack/public/js/audio.js` — native Web Audio 8-bit synthesizer and mobile audio unlock
+- `artifacts/api-server/src/routes/scores.ts` — validated global leaderboard GET/POST endpoints
+- `artifacts/api-server/src/lib/leaderboard-db.ts` — SQLite initialization, ranking cutoff, insertion, and Top 10 pruning
+- `artifacts/api-server/data/pixel-stack.sqlite` — automatically created leaderboard database
 - `artifacts/pixel-stack/src/App.tsx` — React HUD, overlays, controls, and Phaser lifecycle
 - `artifacts/pixel-stack/src/index.css` — responsive neon visual system
 - `artifacts/pixel-stack/public/manifest.json` — installable PWA metadata
