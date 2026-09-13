@@ -137,6 +137,7 @@
 
     onPointerDown(pointer) {
       if (this.gameState === 'paused' || this.gameState === 'gameover') return;
+      global.PixelStackAudio?.unlock();
       this.startRun();
 
       if (!this.active) {
@@ -222,6 +223,7 @@
         this.active.cells = previous;
         this.callbacks.onMessage('ROTATION BLOCKED');
       } else {
+        global.PixelStackAudio?.playRotate();
         this.callbacks.onMessage('ROTATED 90° · DRAG OR TAP AGAIN');
       }
     }
@@ -288,6 +290,7 @@
       this.score += 40 * this.level;
       this.callbacks.onScore(this.score);
       this.callbacks.onMessage('ANCHOR LOCKED · STRUCTURE STABLE');
+      global.PixelStackAudio?.playSnap();
       this.flashBoard(0x55f2c6, 210);
       this.clearCompletedRows();
     }
@@ -298,6 +301,7 @@
         if (this.grid[row].every(Boolean)) complete.push(row);
       }
       if (!complete.length) return;
+      global.PixelStackAudio?.playClearLine();
 
       for (const row of complete) {
         for (let col = 0; col < COLS; col += 1) {
@@ -390,6 +394,7 @@
       if (this.gameState === 'gameover') return;
       this.setState('gameover');
       this.active = null;
+      global.PixelStackAudio?.playGameOver();
       this.flashBoard(0xff5f52, 620);
       this.callbacks.onMessage('FLUID BREACH · RUN ENDED');
     }

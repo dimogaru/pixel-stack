@@ -20,6 +20,10 @@ type GameCallbacks = {
 
 declare global {
   interface Window {
+    PixelStackAudio: {
+      unlock: () => Promise<boolean>;
+      setMuted: (muted: boolean) => void;
+    };
     PixelStackGame: {
       create: (
         parent: HTMLElement,
@@ -73,6 +77,10 @@ function Home() {
   const [soundOn, setSoundOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [runKey, setRunKey] = useState(0);
+
+  useEffect(() => {
+    window.PixelStackAudio?.setMuted(!soundOn);
+  }, [soundOn]);
 
   useEffect(() => {
     if (score > best) {
