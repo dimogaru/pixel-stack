@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Pixel Stack"
+description = "A mobile-first neon pixel arcade game where players drag geometric blocks upward to build a descending tower before the rising lava reaches the ceiling."
+version = "1.0.0"
+id = "artifacts/pixel-stack"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25618
+
+[services.development]
+run = "pnpm --filter @workspace/pixel-stack run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pixel-stack", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/pixel-stack/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25618"
+BASE_PATH = "/"

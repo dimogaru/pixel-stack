@@ -1,0 +1,37 @@
+Actúa como un desarrollador experto en videojuegos web HTML5 y Node.js. 
+
+Quiero crear un prototipo jugable para móvil de un juego llamado "Pixel Stack". El juego es una PWA (Progressive Web App) con estética neón / pixel art. 
+
+Por favor, implementa la arquitectura del proyecto en dos fases consecutivas:
+
+==================================================
+FASE 1: ESTRUCTURA DEL SERVIDOR NODE.JS Y PWA
+==================================================
+
+1. Configura un servidor backend simple con Node.js y Express (server.js) que sirva los archivos estáticos desde una carpeta '/public'.
+2. En la carpeta '/public', crea la estructura básica de la PWA:
+   - index.html: Debe incluir los meta tags de viewport para dispositivos móviles (bloqueando el zoom), meta tags para la instalación PWA en iOS y Android, y la vinculación a Phaser 3 vía CDN (https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js).
+   - manifest.json: Con la configuración de PWA (display: standalone, theme_color, orientation: portrait, nombre "Pixel Stack").
+   - sw.js (Service Worker): Configurado para cachear la aplicación y permitir que funcione offline.
+   - Registrar el Service Worker dentro de index.html de forma segura.
+
+==================================================
+FASE 2: PROTOTIPO DE FÍSICA Y JUGABILIDAD 2D (PHASER 3)
+==================================================
+
+Crea el archivo public/js/game.js con un prototipo funcional en Phaser 3 que incluya:
+
+1. Configuración de pantalla táctil ajustada al viewport móvil en orientación vertical (Portrait).
+2. Mecánica de Lava/Fluido Ascendente:
+   - Una barra o rectángulo en la parte inferior de la pantalla (color neón/naranja) que sube lentamente de manera constante a lo largo del tiempo.
+3. Techo y Anclaje:
+   - Una plataforma estática superior ("Techo").
+4. Generación y Control de Piezas:
+   - Al tocar la pantalla en la zona inferior, nace una pieza geométrica de prueba (por ejemplo, un rectángulo o tetrominó).
+   - El jugador puede arrastrar la pieza hacia la parte superior para anclarla al techo o a otra pieza previamente fijada.
+   - Las piezas ancladas deben adquirir un estado estático para formar pilares descendentes.
+5. Detección de Colisión/Contacto:
+   - Si la lava ascendente toca la parte superior de la pantalla o sobrepasa el nivel del techo, muestra un texto en pantalla de "GAME OVER" y un botón para reiniciar la escena.
+   - Si un pilar creado toca el fluido inferior, aplica una breve pausa en el ascenso del fluido como feedback visual.
+
+Escribe todo el código limpio, bien documentado y modular. Al finalizar, asegúrate de que el servidor Express inicie correctamente en el puerto predeterminado.
