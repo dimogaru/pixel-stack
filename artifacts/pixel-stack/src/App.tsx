@@ -32,6 +32,8 @@ type RunAction = {
   row?: number;
   atMs: number;
 };
+
+declare global {
   interface Window {
     PixelStackAudio: {
       unlock: () => Promise<boolean>;
