@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pixel-stack-v14';
+const CACHE_NAME = 'pixel-stack-v15';
 const PHASER_URL = 'https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js';
 const APP_SHELL = [
   './',

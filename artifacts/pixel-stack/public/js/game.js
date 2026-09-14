@@ -162,8 +162,6 @@
       this.pieceCounter = 0;
       this.nextPiece = null;
       this.gameOverGraceUntil = 0;
-      this.levelAnnouncementQueue = [];
-      this.levelAnnouncementActive = false;
     }
 
     create() {
@@ -233,8 +231,6 @@
       this.currentTheme = { ...THEMES[0] };
       this.startTheme = { ...THEMES[0] };
       this.themeT = 1;
-      this.levelAnnouncementQueue = [];
-      this.levelAnnouncementActive = false;
       if (this.levelAnnouncer) {
         this.levelAnnouncer.setAlpha(0);
         this.tweens.killTweensOf(this.levelAnnouncer);
@@ -256,23 +252,8 @@
     }
 
     showLevelAnnouncer(level = this.level, themeIndex = this.themeIndex) {
-      this.levelAnnouncementQueue.push({ level, themeIndex });
-      this.playNextLevelAnnouncement();
-    }
-
-    playNextLevelAnnouncement() {
-      if (this.levelAnnouncementActive || !this.levelAnnouncementQueue.length) return;
-      this.levelAnnouncementActive = true;
-      const announcement = this.levelAnnouncementQueue.shift();
-      const theme = THEMES[announcement.themeIndex];
-      this.callbacks.onLevel(announcement.level);
-      if (announcement.level > 1) {
-        this.callbacks.onMessage(t('pressureIncreasing', { level: announcement.level }));
-        this.startTheme = { ...this.currentTheme };
-        this.themeIndex = announcement.themeIndex;
-        this.themeT = 0;
-      }
-      const text = `${t('levelUp', { level: announcement.level })}\n${theme.name}`;
+      const theme = THEMES[themeIndex];
+      const text = `${t('levelUp', { level })}\n${theme.name}`;
       this.levelAnnouncer.setText(text);
       const hex = '#' + theme.accent.toString(16).padStart(6, '0');
       this.levelAnnouncer.setColor(hex);
@@ -294,20 +275,19 @@
         delay: 1400,
         duration: 600,
         ease: 'Power2',
-        onComplete: () => {
-          this.levelAnnouncementActive = false;
-          this.playNextLevelAnnouncement();
-        },
       });
     }
 
     syncLevelToScore() {
       const targetLevel = levelForScore(this.score);
-      while (this.level < targetLevel) {
-        this.level += 1;
-        const nextThemeIdx = (this.level - 1) % THEMES.length;
-        this.showLevelAnnouncer(this.level, nextThemeIdx);
-      }
+      if (targetLevel === this.level) return;
+      this.level = targetLevel;
+      this.callbacks.onLevel(this.level);
+      this.callbacks.onMessage(t('pressureIncreasing', { level: this.level }));
+      this.startTheme = { ...this.currentTheme };
+      this.themeIndex = (this.level - 1) % THEMES.length;
+      this.themeT = 0;
+      this.showLevelAnnouncer(this.level, this.themeIndex);
     }
 
     lerpTheme(elapsed) {

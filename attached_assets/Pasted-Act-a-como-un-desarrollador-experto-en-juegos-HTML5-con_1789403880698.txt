@@ -1,0 +1,33 @@
+Actúa como un desarrollador experto en juegos HTML5 con React, TypeScript y Phaser.
+
+Hay un fallo crítico con el cambio de nivel en App.tsx / GameCanvas: al conseguir muchos puntos de golpe (ej. 20,000 pts), el juego empieza a contar y subir niveles uno a uno en bucle (12, 13, 14... hasta 20+), disparando notificaciones en cadena y descontrolando el juego.
+
+Por favor, aplica las siguientes correcciones y mantén todo el juego consolidado:
+
+1. FIX DE NIVELES DIRECTOS (SIN BUCLES NI DISPAROS EN CADENA):
+   - El nivel actual debe ser SIEMPRE un cálculo directo e instantáneo: 'newLevel = Math.floor(score / 1000) + 1'.
+   - Si la puntuación aumenta drásticamente de golpe (ej. de 11,000 a 20,000), actualiza el nivel DIRECTAMENTE a 21 en un solo paso.
+   - Dispara LA NOTIFICACIÓN DE NIVEL Y EL CAMBIO DE TEMA UNA SOLA VEZ, mostrando únicamente el nuevo nivel alcanzado (ej. "¡NIVEL 21!"), en lugar de encadenar 10 anuncios seguidos.
+
+2. CONTROL DE VELOCIDAD DE LA LAVA:
+   - Velocidad base inicial pausada en el Nivel 1.
+   - Incremento muy suave por nivel (solo un 5% a 8% por nivel) y con un LÍMITE MÁXIMO (Speed Cap) para que siempre sea jugable y permita reaccionar en móviles.
+
+3. MECÁNICA DE DERRETIDO PROGRESIVO Y GAME OVER REAL:
+   - La lava consume la estructura desintegrando los bloques desde la base inferior hacia arriba.
+   - El Game Over se activa ÚNICAMENTE cuando la superficie de la lava alcanza la línea del techo. En ese momento, detén la lava, bloquea los controles y muestra el modal (i18n).
+
+4. PUNTUACIÓN ACTIVA Y SIN PUNTOS PASIVOS:
+   - Sin incremento automático de puntos por tiempo ni por frames. Puntuación inicial = 0.
+   - Puntos solo por acciones activas: anclar piezas, limpiar filas o combos.
+
+5. DESPLAZAMIENTO COMPACTO Y COMBOS:
+   - Al completar una fila, elimínala y desplaza hacia ARRIBA todas las filas inferiores para cerrar huecos y re-anclar al techo.
+   - Si se forman nuevas filas completas, activa la reacción en cadena (Combo x2, x3...), sumando puntos y empujando la lava hacia abajo.
+
+6. POWER-UPS, DETALLES VISUALES Y LOCALIZACIÓN:
+   - Pieza Congelante (15% prob.) con contador visible "3, 2, 1, 0" sobre la lava.
+   - Pieza Bomba con explosión y temblor de cámara (Screen Shake).
+   - Vista previa de la siguiente pieza (Next Piece), ondulación en la lava, reseteo limpio con "REPLAY" y detección de idioma del navegador ('navigator.language').
+
+Corrige el cálculo de niveles para que el salto sea instantáneo y sin bucles, asegurando que el código compile sin errores de TypeScript.
