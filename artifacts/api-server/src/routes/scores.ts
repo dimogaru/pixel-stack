@@ -1,26 +1,17 @@
 import { Router, type IRouter, type Request } from "express";
 import { ListScoresResponse, StartRunResponse, SubmitScoreBody, SubmitScoreResponse } from "@workspace/api-zod";
-import { insertHighScore, listHighScores } from "../lib/leaderboard-db";
+import { insertHighScore, isRateLimited, listHighScores } from "../lib/leaderboard-db";
 import { issueRunProof, verifyAndConsumeRunProof } from "../lib/run-proof";
 import { replayRun } from "../lib/run-replay";
 
 const router: IRouter = Router();
-const requests = new Map<string, number[]>();
-
-function isRateLimited(key: string, limit: number, windowMs: number): boolean {
-  const now = Date.now();
-  const recent = (requests.get(key) ?? []).filter((time) => now - time < windowMs);
-  recent.push(now);
-  requests.set(key, recent);
-  return recent.length > limit;
-}
 
 function requestOrigin(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 
-router.post("/runs", (req, res): void => {
-  if (isRateLimited(`run:${requestOrigin(req)}`, 10, 60_000)) {
+router.post("/runs", async (req, res): Promise<void> => {
+  if (await isRateLimited(`run:${requestOrigin(req)}`, 10, 60_000)) {
     res.status(429).json({ error: "Too many game runs" });
     return;
   }
@@ -31,8 +22,8 @@ router.get("/scores", (_req, res): void => {
   res.json(ListScoresResponse.parse(listHighScores()));
 });
 
-router.post("/scores", (req, res): void => {
-  if (isRateLimited(`score:${requestOrigin(req)}`, 5, 60_000)) {
+router.post("/scores", async (req, res): Promise<void> => {
+  if (await isRateLimited(`score:${requestOrigin(req)}`, 5, 60_000)) {
     res.status(429).json({ error: "Too many score submissions" });
     return;
   }

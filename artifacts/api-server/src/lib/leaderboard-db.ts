@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { pool } from "@workspace/db";
 
 export type HighScore = {
   id: number;
@@ -114,4 +115,34 @@ export function createGameRun(id: string, issuedAt: number): void {
 
 export function consumeGameRun(id: string, consumedAt: number): boolean {
   return consumeRunStatement.run(consumedAt, id).changes === 1;
+}
+
+export async function isRateLimited(
+  key: string,
+  limit: number,
+  windowMs: number,
+  now = Date.now(),
+): Promise<boolean> {
+  const result = await pool.query<{ request_count: number }>(`
+    WITH updated AS (
+      INSERT INTO rate_limits (key, request_count, expires_at)
+      VALUES ($1, 1, $2)
+      ON CONFLICT(key) DO UPDATE SET
+        request_count = CASE
+          WHEN rate_limits.expires_at <= $3 THEN 1
+          ELSE rate_limits.request_count + 1
+        END,
+        expires_at = CASE
+          WHEN rate_limits.expires_at <= $3 THEN EXCLUDED.expires_at
+          ELSE rate_limits.expires_at
+        END
+      RETURNING request_count
+    ),
+    cleaned AS (
+      DELETE FROM rate_limits
+      WHERE expires_at <= $3 AND key <> $1
+    )
+    SELECT request_count FROM updated
+  `, [key, now + windowMs, now]);
+  return result.rows[0].request_count > limit;
 }
