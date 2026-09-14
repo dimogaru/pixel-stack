@@ -137,6 +137,8 @@
       this.pointerStart = null;
       this.lavaTop = START_LAVA_TOP;
       this.lavaPausedUntil = 0;
+      this.freezeCountdownUntil = 0;
+      this.freezeCountdownFading = false;
       this.contactPulseUntil = 0;
       this.score = 0;
       this.level = 1;
@@ -158,6 +160,19 @@
         stroke: '#000000',
         strokeThickness: 6,
       }).setOrigin(0.5).setAlpha(0).setDepth(10);
+
+      this.freezeCountdownLabel = this.add.text(WIDTH / 2, START_LAVA_TOP + 34, '', {
+        fontFamily: '"DM Mono", monospace',
+        fontSize: '58px',
+        color: '#34d9ff',
+        fontStyle: 'bold',
+        stroke: '#041726',
+        strokeThickness: 8,
+      })
+        .setOrigin(0.5)
+        .setAlpha(0)
+        .setDepth(12)
+        .setShadow(0, 0, '#34d9ff', 18, true, true);
 
       this.input.on('pointerdown', (pointer) => this.onPointerDown(pointer));
       this.input.on('pointermove', (pointer) => this.onPointerMove(pointer));
@@ -184,6 +199,8 @@
       this.pointerStart = null;
       this.lavaTop = START_LAVA_TOP;
       this.lavaPausedUntil = 0;
+      this.freezeCountdownUntil = 0;
+      this.freezeCountdownFading = false;
       this.contactPulseUntil = 0;
       this.score = 0;
       this.level = 1;
@@ -197,6 +214,10 @@
       if (this.levelAnnouncer) {
         this.levelAnnouncer.setAlpha(0);
         this.tweens.killTweensOf(this.levelAnnouncer);
+      }
+      if (this.freezeCountdownLabel) {
+        this.tweens.killTweensOf(this.freezeCountdownLabel);
+        this.freezeCountdownLabel.setVisible(false).setAlpha(0).setScale(1);
       }
       this.setState(nextState);
       this.callbacks.onScore(0);
@@ -452,6 +473,7 @@
     activatePowerUp(powerUp, placedCells) {
       if (powerUp === 'freeze') {
         this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.time.now + 3000);
+        this.startFreezeCountdown(this.lavaPausedUntil);
         this.showFloatingText('¡CONGELADO!', POWER_UPS.freeze.color);
         this.callbacks.onMessage('FREEZE CORE · LAVA STOPPED FOR 3 SECONDS');
         global.PixelStackAudio?.playFreeze?.();
@@ -487,6 +509,51 @@
       this.showFloatingText('¡BOOM!', POWER_UPS.bomb.color);
       this.callbacks.onMessage('BOMB DETONATED · LAVA FORCED DOWN');
       global.PixelStackAudio?.playBomb?.();
+    }
+
+    startFreezeCountdown(until) {
+      this.freezeCountdownUntil = until;
+      this.freezeCountdownFading = false;
+      this.tweens.killTweensOf(this.freezeCountdownLabel);
+      this.freezeCountdownLabel
+        .setText('3')
+        .setVisible(true)
+        .setAlpha(1)
+        .setScale(1);
+    }
+
+    updateFreezeCountdown(time) {
+      const label = this.freezeCountdownLabel;
+      if (!label?.visible || this.freezeCountdownUntil <= 0) return;
+
+      const labelY = Phaser.Math.Clamp(this.lavaTop + 38, BOARD_Y + 54, HEIGHT - 46);
+      label.setY(labelY);
+
+      if (time < this.freezeCountdownUntil) {
+        const remaining = Math.max(1, Math.ceil((this.freezeCountdownUntil - time) / 1000));
+        const pulse = (Math.sin(time / 105) + 1) / 2;
+        label
+          .setText(String(remaining))
+          .setAlpha(0.78 + pulse * 0.22)
+          .setScale(0.96 + pulse * 0.08);
+        return;
+      }
+
+      if (this.freezeCountdownFading) return;
+      this.freezeCountdownFading = true;
+      label.setText('0').setAlpha(1).setScale(1.08);
+      this.tweens.add({
+        targets: label,
+        alpha: 0,
+        scale: 1.3,
+        duration: 420,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+          label.setVisible(false);
+          this.freezeCountdownUntil = 0;
+          this.freezeCountdownFading = false;
+        },
+      });
     }
 
     showFloatingText(text, color, y = HEIGHT * 0.5) {
@@ -565,7 +632,8 @@
           }
         }
 
-        if (time > this.lavaPausedUntil) {
+        this.updateFreezeCountdown(time);
+        if (time >= this.lavaPausedUntil) {
           const lavaSpeed = 0.0075 + (this.level - 1) * 0.0022;
           this.lavaTop -= elapsed * lavaSpeed;
         }
@@ -643,6 +711,10 @@
       if (this.gameState === 'gameover') return;
       this.setState('gameover');
       this.active = null;
+      this.freezeCountdownUntil = 0;
+      this.freezeCountdownFading = false;
+      this.tweens.killTweensOf(this.freezeCountdownLabel);
+      this.freezeCountdownLabel.setVisible(false).setAlpha(0);
       global.PixelStackAudio?.playGameOver();
       this.flashBoard(this.currentTheme.lava, 620);
       this.callbacks.onMessage('FLUID BREACH · RUN ENDED');
