@@ -51,6 +51,11 @@ declare global {
         scene: { gameState: GameState; togglePause: () => void; setRunSeed: (seed: number) => void };
       };
     };
+    PixelStackI18n: {
+      language: 'en' | 'es';
+      translations: Record<string, Record<string, string>>;
+      t: (key: string, values?: Record<string, string | number>) => string;
+    };
   }
 }
 
@@ -91,12 +96,13 @@ function GameCanvas({ callbacks, paused, runSeed }: { callbacks: GameCallbacks; 
 }
 
 function Home() {
+  const t = window.PixelStackI18n.t;
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(() => Number(window.localStorage.getItem('pixel-stack-best') || 0));
   const [level, setLevel] = useState(1);
   const [combo, setCombo] = useState(1);
   const [gameState, setGameState] = useState<GameState>('ready');
-  const [message, setMessage] = useState('TAP THE LOWER FIELD TO DROP IN');
+  const [message, setMessage] = useState(() => t('initialHint'));
   const [soundOn, setSoundOn] = useState(true);
   const [paused, setPaused] = useState(false);
   const [runKey, setRunKey] = useState(0);
@@ -202,7 +208,7 @@ function Home() {
     const cleanNickname = nickname.trim().toUpperCase();
     if (!/^[A-Z0-9_-]{1,10}$/.test(cleanNickname)) {
       setSubmitStatus('error');
-      setSubmitMessage('USA 1–10 LETRAS, NÚMEROS, _ O -');
+      setSubmitMessage(t('nicknameInvalid'));
       return;
     }
 
@@ -224,17 +230,17 @@ function Home() {
       if (response.status === 409) {
         setQualifyingScore(null);
         setSubmitStatus('error');
-        setSubmitMessage('EL TOP 10 HA CAMBIADO. TU MARCA YA NO CLASIFICA.');
+        setSubmitMessage(t('topChanged'));
         return;
       }
       if (!response.ok) throw new Error('Could not submit score');
       setSubmitStatus('submitted');
       runProofRef.current = null;
-      setSubmitMessage('MARCA REGISTRADA EN LA RED GLOBAL');
+      setSubmitMessage(t('scoreSaved'));
       await loadScores();
     } catch {
       setSubmitStatus('error');
-      setSubmitMessage('NO SE PUDO GUARDAR. INTÉNTALO DE NUEVO.');
+      setSubmitMessage(t('scoreSaveFailed'));
     }
   };
 
@@ -244,7 +250,7 @@ function Home() {
     setCombo(1);
     setPaused(false);
     setGameState('ready');
-    setMessage('TAP THE LOWER FIELD TO DROP IN');
+    setMessage(t('initialHint'));
     setQualifyingScore(null);
     setSubmitStatus('idle');
     setSubmitMessage('');
@@ -264,15 +270,15 @@ function Home() {
             <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
             <div>
               <p className="brand-name">PIXEL STACK</p>
-              <p className="brand-subtitle">VERTICAL PRESSURE TEST</p>
+              <p className="brand-subtitle">{t('brandSubtitle')}</p>
             </div>
           </div>
           <div className="header-actions">
             <div className="status-chip" data-testid="status-game-state">
               <span className={`status-dot ${gameState}`} />
-              {gameState === 'gameover' ? 'RUN ENDED' : gameState === 'paused' ? 'PAUSED' : gameState === 'ready' ? 'STANDBY' : 'LIVE RUN'}
+              {gameState === 'gameover' ? t('runEnded') : gameState === 'paused' ? t('paused') : gameState === 'ready' ? t('standby') : t('liveRun')}
             </div>
-            <button className="icon-button" onClick={() => setSoundOn((value) => !value)} aria-label={soundOn ? 'Mute game' : 'Enable sound'} data-testid="button-toggle-sound">
+            <button className="icon-button" onClick={() => setSoundOn((value) => !value)} aria-label={soundOn ? t('muteGame') : t('enableSound')} data-testid="button-toggle-sound">
               {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
             </button>
           </div>
@@ -280,17 +286,17 @@ function Home() {
 
         <div className="score-strip">
           <div className="stat-block">
-            <span className="stat-label">SCORE</span>
+            <span className="stat-label">{t('score')}</span>
             <strong className="stat-value" data-testid="text-score">{String(score).padStart(4, '0')}</strong>
           </div>
-          <div className="pressure-meter" aria-label="Rising lava indicator">
-            <span className="meter-label">LEVEL</span>
+          <div className="pressure-meter" aria-label={t('risingLavaIndicator')}>
+            <span className="meter-label">{t('level')}</span>
             <strong className="level-value" data-testid="text-level">{String(level).padStart(2, '0')}</strong>
-            <span className={`combo-value ${combo > 1 ? 'active' : ''}`} data-testid="text-combo">COMBO x{combo}</span>
+            <span className={`combo-value ${combo > 1 ? 'active' : ''}`} data-testid="text-combo">{t('combo', { value: combo })}</span>
             <span className="meter-bars"><i /><i /><i /><i /><i /></span>
           </div>
           <div className="stat-block align-right">
-            <span className="stat-label">BEST</span>
+            <span className="stat-label">{t('best')}</span>
             <strong className="stat-value best" data-testid="text-best">{String(best).padStart(4, '0')}</strong>
           </div>
         </div>
@@ -298,8 +304,8 @@ function Home() {
         <div className="play-area">
           <GameCanvas key={runKey} callbacks={callbacks} paused={paused} runSeed={runSeed} />
           <div className="play-copy top-copy">
-            <span className="copy-line">CEILING LOCK</span>
-            <span className="copy-line faint">TAP · DRAG · RELEASE</span>
+            <span className="copy-line">{t('ceilingLock')}</span>
+            <span className="copy-line faint">{t('controlsHint')}</span>
           </div>
           <div className="drag-hint" data-testid="text-instruction">
             <MousePointer2 size={15} />
@@ -309,11 +315,11 @@ function Home() {
           {gameState === 'paused' && (
             <div className="state-overlay" data-testid="overlay-paused">
               <div className="overlay-card">
-                <span className="overlay-kicker">RUN FROZEN</span>
-                <h1>Take a breath.</h1>
-                <p>The tower waits. The lava does not.</p>
+                <span className="overlay-kicker">{t('runFrozen')}</span>
+                <h1>{t('takeABreath')}</h1>
+                <p>{t('towerWaits')}</p>
                 <button className="primary-button" onClick={() => setPaused(false)} data-testid="button-resume">
-                  <Play size={16} /> RESUME RUN
+                  <Play size={16} /> {t('resumeRun')}
                 </button>
               </div>
             </div>
@@ -321,37 +327,37 @@ function Home() {
           {gameState === 'gameover' && (
             <div className="state-overlay" data-testid="overlay-game-over">
               <div className="overlay-card game-over-card">
-                <span className="overlay-kicker danger">FLUID BREACH</span>
-                <h1>Stack collapsed.</h1>
-                <p>You held the line for <b>{score} points</b>.</p>
-                <div className="result-row"><span>THIS RUN</span><strong>{String(score).padStart(4, '0')}</strong></div>
-                <div className="result-row"><span>ALL-TIME BEST</span><strong className="best">{String(best).padStart(4, '0')}</strong></div>
+                <span className="overlay-kicker danger">{t('fluidBreach')}</span>
+                <h1>{t('stackCollapsed')}</h1>
+                <p>{t('heldLine', { points: score })}</p>
+                <div className="result-row"><span>{t('thisRun')}</span><strong>{String(score).padStart(4, '0')}</strong></div>
+                <div className="result-row"><span>{t('allTimeBest')}</span><strong className="best">{String(best).padStart(4, '0')}</strong></div>
                 {qualifyingScore !== null && submitStatus !== 'submitted' && (
                   <form className="score-entry" onSubmit={submitScore}>
-                    <label htmlFor="nickname">TOP 10 · IDENTIFÍCATE</label>
+                    <label htmlFor="nickname">{t('identify')}</label>
                     <div className="score-entry-row">
                       <input
                         id="nickname"
                         value={nickname}
                         onChange={(event) => setNickname(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 10))}
                         maxLength={10}
-                        placeholder="APODO"
+                        placeholder={t('nickname')}
                         autoComplete="nickname"
                         autoFocus
                         data-testid="input-nickname"
                       />
                       <button type="submit" disabled={submitStatus === 'submitting'} data-testid="button-submit-score">
-                        {submitStatus === 'submitting' ? '...' : 'SEND'}
+                        {submitStatus === 'submitting' ? '...' : t('send')}
                       </button>
                     </div>
                   </form>
                 )}
                 {submitMessage && <p className={`score-message ${submitStatus}`} data-testid="text-score-submit-status">{submitMessage}</p>}
                 <button className="primary-button" onClick={restart} data-testid="button-replay">
-                  <RotateCcw size={16} /> REPLAY
+                  <RotateCcw size={16} /> {t('replay')}
                 </button>
                 <button className="secondary-button" onClick={() => void loadScores(true)} data-testid="button-gameover-leaderboard">
-                  <Trophy size={15} /> TOP JUGADORES
+                  <Trophy size={15} /> {t('leaderboard')}
                 </button>
               </div>
             </div>
@@ -361,40 +367,40 @@ function Home() {
         <div className="control-row">
           <button className="control-button" onClick={() => { if (gameState === 'ready') return; setPaused((value) => !value); }} disabled={gameState === 'ready' || gameState === 'gameover'} data-testid="button-pause">
             {paused ? <Play size={15} /> : <Pause size={15} />}
-            {paused ? 'RESUME' : 'PAUSE'}
+            {paused ? t('resume') : t('pause')}
           </button>
           <button className="control-button leaderboard-trigger" onClick={() => void loadScores(true)} data-testid="button-leaderboard">
-            <Trophy size={15} /> TOP JUGADORES
+            <Trophy size={15} /> {t('leaderboard')}
           </button>
           <button className="control-button" onClick={restart} data-testid="button-restart">
-            <RotateCcw size={15} /> NEW RUN
+            <RotateCcw size={15} /> {t('newRun')}
           </button>
         </div>
 
         <footer className="game-footer">
-          <div><Flame size={14} /><span>RISING LAVA</span></div>
+          <div><Flame size={14} /><span>{t('risingLava')}</span></div>
           <span className="footer-divider">/</span>
-          <div><Crosshair size={14} /><span>BUILD WITHIN THE LINE</span></div>
+          <div><Crosshair size={14} /><span>{t('buildWithinLine')}</span></div>
           <span className="version">PS–01</span>
         </footer>
       </section>
       {leaderboardOpen && (
         <div className="leaderboard-overlay" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title" data-testid="overlay-leaderboard">
           <section className="leaderboard-card">
-            <button className="leaderboard-close" onClick={() => setLeaderboardOpen(false)} aria-label="Cerrar clasificación" data-testid="button-close-leaderboard">
+            <button className="leaderboard-close" onClick={() => setLeaderboardOpen(false)} aria-label={t('closeLeaderboard')} data-testid="button-close-leaderboard">
               <X size={18} />
             </button>
-            <span className="overlay-kicker">GLOBAL NETWORK</span>
-            <h2 id="leaderboard-title">Top Jugadores</h2>
-            <p className="leaderboard-subtitle">LAS 10 PILAS QUE MÁS RESISTIERON</p>
-            {leaderboardStatus === 'loading' && <div className="leaderboard-state">CARGANDO SEÑAL...</div>}
+            <span className="overlay-kicker">{t('globalNetwork')}</span>
+            <h2 id="leaderboard-title">{t('topPlayers')}</h2>
+            <p className="leaderboard-subtitle">{t('topStacks')}</p>
+            {leaderboardStatus === 'loading' && <div className="leaderboard-state">{t('loadingSignal')}</div>}
             {leaderboardStatus === 'error' && (
               <div className="leaderboard-state error">
-                SIN CONEXIÓN CON EL RANKING
-                <button onClick={() => void loadScores()}>REINTENTAR</button>
+                {t('rankingOffline')}
+                <button onClick={() => void loadScores()}>{t('retry')}</button>
               </div>
             )}
-            {leaderboardStatus === 'idle' && scores.length === 0 && <div className="leaderboard-state">AÚN NO HAY MARCAS</div>}
+            {leaderboardStatus === 'idle' && scores.length === 0 && <div className="leaderboard-state">{t('noScores')}</div>}
             {leaderboardStatus === 'idle' && scores.length > 0 && (
               <ol className="leaderboard-list">
                 {scores.map((entry, index) => (
@@ -410,11 +416,11 @@ function Home() {
         </div>
       )}
       <aside className="desktop-note">
-        <p className="eyebrow">ONE-HAND ARCADE / 001</p>
-        <h2>Don’t let the<br /><em>pressure</em> win.</h2>
-        <p className="note-copy">Every pillar buys you a little more room. Every shaky release spends it.</p>
+        <p className="eyebrow">{t('desktopEyebrow')}</p>
+        <h2>{t('pressureHeadline').split('|')[0]}<br /><em>{t('pressureHeadline').split('|')[1]}</em> {t('pressureHeadline').split('|')[2]}</h2>
+        <p className="note-copy">{t('desktopCopy')}</p>
         <div className="note-rule" />
-        <p className="note-foot">Best played in portrait.<br />Sound on. Thumb ready.</p>
+        <p className="note-foot">{t('desktopFoot').split('|')[0]}<br />{t('desktopFoot').split('|')[1]}</p>
       </aside>
     </main>
   );

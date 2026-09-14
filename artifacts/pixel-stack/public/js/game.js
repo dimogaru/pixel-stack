@@ -8,6 +8,7 @@
  */
 (function registerPixelStackGame(global) {
   'use strict';
+  const t = (key, values) => global.PixelStackI18n?.t(key, values) || key;
 
   const WIDTH = 420;
   const HEIGHT = 720;
@@ -243,7 +244,7 @@
     }
 
     showLevelAnnouncer() {
-      const text = `¡NIVEL ${this.level}!\n${THEMES[this.themeIndex].name}`;
+      const text = `${t('levelUp', { level: this.level })}\n${THEMES[this.themeIndex].name}`;
       this.levelAnnouncer.setText(text);
       const hex = '#' + this.currentTheme.accent.toString(16).padStart(6, '0');
       this.levelAnnouncer.setColor(hex);
@@ -289,7 +290,7 @@
       if (this.gameState === 'ready' || this.gameState === 'gameover') return;
       const next = this.gameState === 'paused' ? 'playing' : 'paused';
       this.setState(next);
-      this.callbacks.onMessage(next === 'paused' ? 'RUN FROZEN · RESUME WHEN READY' : 'LAVA IS MOVING · KEEP BUILDING');
+      this.callbacks.onMessage(next === 'paused' ? t('pausedMessage') : t('resumedMessage'));
     }
 
     startRun() {
@@ -299,7 +300,7 @@
         this.callbacks.onRunStart?.(this.runSeed !== null);
       }
       this.setState('playing');
-      this.callbacks.onMessage('DRAG UP · TAP QUICKLY TO ROTATE');
+      this.callbacks.onMessage(t('dragHint'));
       this.showLevelAnnouncer();
     }
 
@@ -326,7 +327,7 @@
       const halfHeight = (size.height * CELL) / 2;
       this.active.x = Phaser.Math.Clamp(pointer.x - this.dragOffset.x, BOARD_X + halfWidth, BOARD_X + COLS * CELL - halfWidth);
       this.active.y = Phaser.Math.Clamp(pointer.y - this.dragOffset.y, CEILING_Y + halfHeight, this.lavaTop - halfHeight - 4);
-      this.callbacks.onMessage(this.canAnchor(this.active) ? 'SUPPORT FOUND · RELEASE TO LOCK' : 'NO SUPPORT · RELEASE TO DROP');
+      this.callbacks.onMessage(this.canAnchor(this.active) ? t('supportFound') : t('noSupportDrop'));
     }
 
     onPointerUp(pointer) {
@@ -378,8 +379,8 @@
       this.pieceCounter += 1;
       this.gameOverGraceUntil = this.elapsedRun + SPAWN_GRACE_MS;
       this.callbacks.onMessage(powerUp
-        ? `${POWER_UPS[powerUp].label} ${type} · TAP TO ROTATE OR DRAG UP`
-        : `${type} PIECE · TAP TO ROTATE OR DRAG UP`);
+        ? t('specialPieceHint', { powerUp: t(powerUp === 'freeze' ? 'freezePower' : 'bombPower'), type })
+        : t('pieceHint', { type }));
     }
 
     rotateActive() {
@@ -394,11 +395,11 @@
       this.active.y = Phaser.Math.Clamp(this.active.y, CEILING_Y + halfHeight, this.lavaTop - halfHeight - 4);
       if (this.overlapsGrid(this.active)) {
         this.active.cells = previous;
-        this.callbacks.onMessage('ROTATION BLOCKED');
+        this.callbacks.onMessage(t('rotationBlocked'));
       } else {
         this.active.rotation = (this.active.rotation + 1) % 4;
         global.PixelStackAudio?.playRotate();
-        this.callbacks.onMessage('ROTATED 90° · DRAG OR TAP AGAIN');
+        this.callbacks.onMessage(t('rotated'));
       }
     }
 
@@ -410,7 +411,7 @@
       } else {
         this.active.falling = true;
         this.active.velocityY = 50;
-        this.callbacks.onMessage('NO SUPPORT · PIECE FALLING');
+        this.callbacks.onMessage(t('pieceFalling'));
       }
     }
 
@@ -474,7 +475,7 @@
         atMs: Math.round(this.elapsedRun),
       });
       this.callbacks.onScore(this.score);
-      this.callbacks.onMessage('ANCHOR LOCKED · STRUCTURE STABLE');
+      this.callbacks.onMessage(t('anchorLocked'));
       global.PixelStackAudio?.playSnap();
       this.flashBoard(this.currentTheme.accent, 210);
       this.activatePowerUp(piece.powerUp, placedCells);
@@ -488,7 +489,7 @@
       this.setCombo(isQuickPlacement ? Math.min(MAX_COMBO, this.combo + 1) : 1);
       this.lastAnchorAt = now;
       if (this.combo > 1) {
-        this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.42);
+        this.showFloatingText(t('combo', { value: this.combo }), this.currentTheme.accent, HEIGHT * 0.42);
         global.PixelStackAudio?.playCombo?.(this.combo);
       }
     }
@@ -503,8 +504,8 @@
       if (powerUp === 'freeze') {
         this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.elapsedRun + 3000);
         this.startFreezeCountdown(this.lavaPausedUntil);
-        this.showFloatingText('¡CONGELADO!', POWER_UPS.freeze.color);
-        this.callbacks.onMessage('FREEZE CORE · LAVA STOPPED FOR 3 SECONDS');
+        this.showFloatingText(t('frozen'), POWER_UPS.freeze.color);
+        this.callbacks.onMessage(t('freezeMessage'));
         global.PixelStackAudio?.playFreeze?.();
         return;
       }
@@ -536,8 +537,8 @@
       this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
       this.cameras.main.shake(180, 0.004);
       this.flashBoard(POWER_UPS.bomb.color, 480);
-      this.showFloatingText('¡BOOM!', POWER_UPS.bomb.color);
-      this.callbacks.onMessage('BOMB DETONATED · LAVA FORCED DOWN');
+      this.showFloatingText(t('boom'), POWER_UPS.bomb.color);
+      this.callbacks.onMessage(t('bombMessage'));
       global.PixelStackAudio?.playBomb?.();
     }
 
@@ -616,7 +617,7 @@
       this.setCombo(Math.min(MAX_COMBO, this.combo + 1));
       const clearMultiplier = this.combo;
       if (this.combo > 1) {
-        this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.38);
+        this.showFloatingText(t('combo', { value: this.combo }), this.currentTheme.accent, HEIGHT * 0.38);
         global.PixelStackAudio?.playCombo?.(this.combo);
       }
       this.cameras.main.shake(140, 0.0025);
@@ -635,7 +636,10 @@
       this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + complete.length * CELL * 2);
       this.score += complete.length * 500 * this.level * clearMultiplier;
       this.callbacks.onScore(this.score);
-      this.callbacks.onMessage(`${complete.length} LINE${complete.length > 1 ? 'S' : ''} VENTED · LAVA PUSHED DOWN`);
+      this.callbacks.onMessage(t('linesVented', {
+        count: complete.length,
+        lines: t(complete.length > 1 ? 'lines' : 'line'),
+      }));
     }
 
     update(time, delta) {
@@ -659,7 +663,7 @@
         if (nextLevel > this.level) {
           this.level = nextLevel;
           this.callbacks.onLevel(this.level);
-          this.callbacks.onMessage(`LEVEL ${this.level} · PRESSURE INCREASING`);
+          this.callbacks.onMessage(t('pressureIncreasing', { level: this.level }));
           
           const nextThemeIdx = (this.level - 1) % 4;
           if (nextThemeIdx !== this.themeIndex) {
@@ -727,7 +731,7 @@
         this.callbacks.onScore(this.score);
         this.setCombo(1);
         this.lastAnchorAt = 0;
-        this.callbacks.onMessage('PIECE LOST TO THE LAVA');
+        this.callbacks.onMessage(t('pieceLost'));
         this.contactPulseUntil = this.elapsedRun + 500;
         this.flashBoard(this.currentTheme.lava, 400);
         this.spawnPiece();
@@ -751,7 +755,7 @@
       this.freezeCountdownLabel.setVisible(false).setAlpha(0);
       global.PixelStackAudio?.playGameOver();
       this.flashBoard(this.currentTheme.lava, 620);
-      this.callbacks.onMessage('FLUID BREACH · RUN ENDED');
+      this.callbacks.onMessage(t('breachEnded'));
       this.callbacks.onGameOver?.(this.score, Math.round(this.elapsedRun));
     }
 
