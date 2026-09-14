@@ -30,6 +30,10 @@ const SHAPES: Record<(typeof TYPES)[number], Array<[number, number]>> = {
   Z: [[0, 0], [1, 0], [1, 1], [2, 1]],
 };
 
+export function levelForScore(score: number): number {
+  return Math.floor(Math.max(0, score) / SCORE_PER_LEVEL) + 1;
+}
+
 function normalize(cells: Array<[number, number]>): Array<[number, number]> {
   const minX = Math.min(...cells.map(([x]) => x));
   const minY = Math.min(...cells.map(([, y]) => y));
@@ -78,7 +82,7 @@ export function applyScoring(
   }
   return {
     score: nextScore,
-    level: Math.max(level, 1 + Math.floor(nextScore / SCORE_PER_LEVEL)),
+    level: levelForScore(nextScore),
   };
 }
 
@@ -206,7 +210,7 @@ export function replayRun(
     combo = clearResult.combo;
     score += clearResult.scoreBonus;
     lavaTop = Math.min(START_LAVA_TOP, lavaTop + clearResult.clearedRows * CELL * 2);
-    level = Math.max(level, 1 + Math.floor(score / SCORE_PER_LEVEL));
+    level = levelForScore(score);
   }
 
   if (endedAtMs < previousAtMs) return null;

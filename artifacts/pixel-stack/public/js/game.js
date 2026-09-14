@@ -27,6 +27,7 @@
   const COMBO_WINDOW_MS = 2000;
   const MAX_COMBO = 4;
   const SPAWN_GRACE_MS = 1500;
+  const levelForScore = (score) => Math.floor(Math.max(0, score) / SCORE_PER_LEVEL) + 1;
   const POWER_UPS = {
     freeze: { color: 0x36b9ff, label: 'FREEZE' },
     bomb: { color: 0xff315c, label: 'BOMB' },
@@ -154,6 +155,8 @@
       this.pieceCounter = 0;
       this.nextPiece = null;
       this.gameOverGraceUntil = 0;
+      this.levelAnnouncementQueue = [];
+      this.levelAnnouncementActive = false;
     }
 
     create() {
@@ -223,6 +226,8 @@
       this.currentTheme = { ...THEMES[0] };
       this.startTheme = { ...THEMES[0] };
       this.themeT = 1;
+      this.levelAnnouncementQueue = [];
+      this.levelAnnouncementActive = false;
       if (this.levelAnnouncer) {
         this.levelAnnouncer.setAlpha(0);
         this.tweens.killTweensOf(this.levelAnnouncer);
@@ -243,10 +248,26 @@
       this.callbacks.onState(state);
     }
 
-    showLevelAnnouncer() {
-      const text = `${t('levelUp', { level: this.level })}\n${THEMES[this.themeIndex].name}`;
+    showLevelAnnouncer(level = this.level, themeIndex = this.themeIndex) {
+      this.levelAnnouncementQueue.push({ level, themeIndex });
+      this.playNextLevelAnnouncement();
+    }
+
+    playNextLevelAnnouncement() {
+      if (this.levelAnnouncementActive || !this.levelAnnouncementQueue.length) return;
+      this.levelAnnouncementActive = true;
+      const announcement = this.levelAnnouncementQueue.shift();
+      const theme = THEMES[announcement.themeIndex];
+      this.callbacks.onLevel(announcement.level);
+      if (announcement.level > 1) {
+        this.callbacks.onMessage(t('pressureIncreasing', { level: announcement.level }));
+        this.startTheme = { ...this.currentTheme };
+        this.themeIndex = announcement.themeIndex;
+        this.themeT = 0;
+      }
+      const text = `${t('levelUp', { level: announcement.level })}\n${theme.name}`;
       this.levelAnnouncer.setText(text);
-      const hex = '#' + this.currentTheme.accent.toString(16).padStart(6, '0');
+      const hex = '#' + theme.accent.toString(16).padStart(6, '0');
       this.levelAnnouncer.setColor(hex);
       this.levelAnnouncer.setAlpha(1);
       this.levelAnnouncer.setScale(0.8);
@@ -265,8 +286,21 @@
         alpha: 0,
         delay: 1400,
         duration: 600,
-        ease: 'Power2'
+        ease: 'Power2',
+        onComplete: () => {
+          this.levelAnnouncementActive = false;
+          this.playNextLevelAnnouncement();
+        },
       });
+    }
+
+    syncLevelToScore() {
+      const targetLevel = levelForScore(this.score);
+      while (this.level < targetLevel) {
+        this.level += 1;
+        const nextThemeIdx = (this.level - 1) % THEMES.length;
+        this.showLevelAnnouncer(this.level, nextThemeIdx);
+      }
     }
 
     lerpTheme(elapsed) {
@@ -668,20 +702,7 @@
         if (this.combo > 1 && this.lastAnchorAt > 0 && this.elapsedRun - this.lastAnchorAt >= COMBO_WINDOW_MS) {
           this.setCombo(1);
         }
-        const nextLevel = 1 + Math.floor(this.score / SCORE_PER_LEVEL);
-        if (nextLevel > this.level) {
-          this.level = nextLevel;
-          this.callbacks.onLevel(this.level);
-          this.callbacks.onMessage(t('pressureIncreasing', { level: this.level }));
-          
-          const nextThemeIdx = (this.level - 1) % 4;
-          if (nextThemeIdx !== this.themeIndex) {
-            this.startTheme = { ...this.currentTheme };
-            this.themeIndex = nextThemeIdx;
-            this.themeT = 0;
-            this.showLevelAnnouncer();
-          }
-        }
+        this.syncLevelToScore();
 
         this.updateFreezeCountdown(this.elapsedRun);
         if (this.elapsedRun > this.lavaPausedUntil) {

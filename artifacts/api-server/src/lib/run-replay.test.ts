@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyScoring, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
+import { applyScoring, levelForScore, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
 
 const validFirstAnchor: RunAction = {
   kind: "anchor",
@@ -83,6 +83,12 @@ test("rejects geometrically valid actions after lava game over", () => {
 });
 
 test("matches the client level transition at each 1000 score points", () => {
+  assert.equal(levelForScore(0), 1);
+  assert.equal(levelForScore(999), 1);
+  assert.equal(levelForScore(1_000), 2);
+  assert.equal(levelForScore(1_999), 2);
+  assert.equal(levelForScore(2_000), 3);
+  assert.equal(levelForScore(3_999), 4);
   assert.deepEqual(applyScoring(960, 1, 0), { score: 1000, level: 2 });
   assert.deepEqual(applyScoring(1000, 2, 1), { score: 3080, level: 4 });
 });
