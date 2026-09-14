@@ -94,6 +94,7 @@ export function replayRun(
   let elapsedMs = 0;
   let lavaTop = START_LAVA_TOP;
   let lavaPausedUntil = 0;
+  let contactPulseUntil = 0;
   let combo = 1;
   let lastAnchorAt = 0;
 
@@ -106,12 +107,18 @@ export function replayRun(
         lavaTop -= step * lavaSpeed;
       }
 
-      for (let row = 0; row < ROWS; row += 1) {
+      let touching = false;
+      for (let row = 0; row < ROWS && !touching; row += 1) {
         for (let col = 0; col < COLS; col += 1) {
           if (grid[row][col] && BOARD_Y + (row + 1) * CELL >= lavaTop) {
-            return elapsedMs;
+            touching = true;
+            break;
           }
         }
+      }
+      if (touching && elapsedMs > contactPulseUntil) {
+        lavaPausedUntil = elapsedMs + 650;
+        contactPulseUntil = elapsedMs + 1250;
       }
       if (lavaTop <= GAME_OVER_LAVA_TOP) return elapsedMs;
     }

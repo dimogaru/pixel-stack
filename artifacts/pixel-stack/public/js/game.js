@@ -25,6 +25,7 @@
   const SPECIAL_CHANCE = 0.15;
   const COMBO_WINDOW_MS = 2000;
   const MAX_COMBO = 4;
+  const SPAWN_GRACE_MS = 1500;
   const POWER_UPS = {
     freeze: { color: 0x36b9ff, label: 'FREEZE' },
     bomb: { color: 0xff315c, label: 'BOMB' },
@@ -151,6 +152,7 @@
       this.randomState = 0;
       this.pieceCounter = 0;
       this.nextPiece = null;
+      this.gameOverGraceUntil = 0;
     }
 
     create() {
@@ -213,6 +215,7 @@
       this.runStarted = false;
       this.pieceCounter = 0;
       this.nextPiece = null;
+      this.gameOverGraceUntil = SPAWN_GRACE_MS;
       this.combo = 1;
       this.lastAnchorAt = 0;
       this.themeIndex = 0;
@@ -373,6 +376,7 @@
         rotation: 0,
       };
       this.pieceCounter += 1;
+      this.gameOverGraceUntil = this.elapsedRun + SPAWN_GRACE_MS;
       this.callbacks.onMessage(powerUp
         ? `${POWER_UPS[powerUp].label} ${type} · TAP TO ROTATE OR DRAG UP`
         : `${type} PIECE · TAP TO ROTATE OR DRAG UP`);
@@ -717,28 +721,22 @@
       const bottom = this.active.y + (size.height * CELL) / 2;
       if (bottom >= this.lavaTop) {
         this.burstAt(this.active.x, this.lavaTop, this.active.color, 15);
+        this.active = null;
+        this.score = Math.max(0, this.score - 25);
         this.callbacks.onRunInvalid?.();
+        this.callbacks.onScore(this.score);
+        this.setCombo(1);
+        this.lastAnchorAt = 0;
+        this.callbacks.onMessage('PIECE LOST TO THE LAVA');
+        this.contactPulseUntil = this.elapsedRun + 500;
         this.flashBoard(this.currentTheme.lava, 400);
-        this.endRun();
+        this.spawnPiece();
       }
     }
 
     hasLavaBreach() {
-      if (this.lavaTop <= CEILING_Y + 2) return true;
-      if (this.active) {
-        const size = dimensions(this.active.cells);
-        const activeBottom = this.active.y + (size.height * CELL) / 2;
-        if (activeBottom >= this.lavaTop) {
-          this.callbacks.onRunInvalid?.();
-          return true;
-        }
-      }
-      for (let row = 0; row < ROWS; row += 1) {
-        for (let col = 0; col < COLS; col += 1) {
-          if (this.grid[row][col] && BOARD_Y + (row + 1) * CELL >= this.lavaTop) return true;
-        }
-      }
-      return false;
+      if (this.elapsedRun < this.gameOverGraceUntil) return false;
+      return this.lavaTop <= CEILING_Y + 2;
     }
 
     endRun() {
