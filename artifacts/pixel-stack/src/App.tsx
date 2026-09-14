@@ -40,6 +40,7 @@ declare global {
       setMuted: (muted: boolean) => void;
       playFreeze: () => void;
       playBomb: () => void;
+      playCombo: (multiplier: number) => void;
     };
     PixelStackGame: {
       create: (

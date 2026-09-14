@@ -12,7 +12,7 @@ const validFirstAnchor: RunAction = {
 };
 
 test("derives score from a mechanically valid seeded placement", () => {
-  assert.equal(replayRun(1, [validFirstAnchor], 85_100, 86_100), 40);
+  assert.equal(replayRun(1, [validFirstAnchor], 88_100, 89_100), 40);
 });
 
 test("rejects skipped pieces used to cherry-pick the seeded sequence", () => {
@@ -84,5 +84,10 @@ test("rejects geometrically valid actions after lava game over", () => {
 
 test("matches the client level transition at each 1000 score points", () => {
   assert.deepEqual(applyScoring(960, 1, 0), { score: 1000, level: 2 });
-  assert.deepEqual(applyScoring(1000, 2, 1), { score: 2080, level: 3 });
+  assert.deepEqual(applyScoring(1000, 2, 1), { score: 3080, level: 4 });
+});
+
+test("applies fast-placement and line-clear combo multipliers", () => {
+  assert.deepEqual(applyScoring(0, 1, 0, 3), { score: 120, level: 1 });
+  assert.deepEqual(applyScoring(0, 1, 1, 3), { score: 2120, level: 3 });
 });

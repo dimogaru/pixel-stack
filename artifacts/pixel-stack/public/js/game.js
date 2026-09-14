@@ -351,8 +351,7 @@
 
     spawnPiece(pointerX = WIDTH / 2) {
       if (this.active || this.gameState === 'gameover') return;
-      const type = this.nextPieceType();
-      const specialRoll = this.runSeed === null ? Phaser.Math.RND.frac() : this.nextRandomValue();
+      const { type, specialRoll } = this.nextPieceDescriptor();
       const powerUp = specialRoll < SPECIAL_CHANCE
         ? (specialRoll < SPECIAL_CHANCE / 2 ? 'freeze' : 'bomb')
         : null;
@@ -479,11 +478,14 @@
     }
 
     updateComboForAnchor() {
-      const now = this.time.now;
+      const now = this.elapsedRun;
       const isQuickPlacement = this.lastAnchorAt > 0 && now - this.lastAnchorAt < COMBO_WINDOW_MS;
       this.setCombo(isQuickPlacement ? Math.min(MAX_COMBO, this.combo + 1) : 1);
       this.lastAnchorAt = now;
-      if (this.combo > 1) this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.42);
+      if (this.combo > 1) {
+        this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.42);
+        global.PixelStackAudio?.playCombo?.(this.combo);
+      }
     }
 
     setCombo(value) {
@@ -494,7 +496,7 @@
 
     activatePowerUp(powerUp, placedCells) {
       if (powerUp === 'freeze') {
-        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.time.now + 3000);
+        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.elapsedRun + 3000);
         this.startFreezeCountdown(this.lavaPausedUntil);
         this.showFloatingText('¡CONGELADO!', POWER_UPS.freeze.color);
         this.callbacks.onMessage('FREEZE CORE · LAVA STOPPED FOR 3 SECONDS');
@@ -527,6 +529,7 @@
         this.grid[row][col] = null;
       }
       this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
+      this.cameras.main.shake(180, 0.004);
       this.flashBoard(POWER_UPS.bomb.color, 480);
       this.showFloatingText('¡BOOM!', POWER_UPS.bomb.color);
       this.callbacks.onMessage('BOMB DETONATED · LAVA FORCED DOWN');
@@ -607,7 +610,11 @@
       global.PixelStackAudio?.playClearLine();
       this.setCombo(Math.min(MAX_COMBO, this.combo + 1));
       const clearMultiplier = this.combo;
-      if (this.combo > 1) this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.38);
+      if (this.combo > 1) {
+        this.showFloatingText(`COMBO x${this.combo}`, this.currentTheme.accent, HEIGHT * 0.38);
+        global.PixelStackAudio?.playCombo?.(this.combo);
+      }
+      this.cameras.main.shake(140, 0.0025);
 
       for (const row of complete) {
         for (let col = 0; col < COLS; col += 1) {
@@ -708,7 +715,7 @@
         this.setCombo(1);
         this.lastAnchorAt = 0;
         this.callbacks.onMessage('PIECE LOST TO THE LAVA');
-        this.contactPulseUntil = this.time.now + 500;
+        this.contactPulseUntil = this.elapsedRun + 500;
         this.flashBoard(this.currentTheme.lava, 400);
         this.spawnPiece();
       }
@@ -955,9 +962,18 @@
       this.spawnPiece(WIDTH / 2);
     }
 
-    nextPieceType() {
-      if (this.runSeed === null) return Phaser.Utils.Array.GetRandom(TYPES);
-      return TYPES[this.nextRandomValue() % TYPES.length];
+    nextPieceDescriptor() {
+      if (this.runSeed === null) {
+        return {
+          type: Phaser.Utils.Array.GetRandom(TYPES),
+          specialRoll: Phaser.Math.RND.frac(),
+        };
+      }
+      const randomValue = this.nextRandomValue();
+      return {
+        type: TYPES[randomValue % TYPES.length],
+        specialRoll: randomValue / 0x100000000,
+      };
     }
 
     nextRandomValue() {

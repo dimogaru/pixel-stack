@@ -16,6 +16,9 @@ const START_LAVA_TOP = 638;
 const GAME_OVER_LAVA_TOP = 78;
 const SIMULATION_STEP_MS = 10;
 const TERMINAL_TOLERANCE_MS = 1_000;
+const SPECIAL_CHANCE = 0.15;
+const COMBO_WINDOW_MS = 2_000;
+const MAX_COMBO = 4;
 const TYPES = ["I", "O", "T", "L", "J", "S", "Z"] as const;
 const SHAPES: Record<(typeof TYPES)[number], Array<[number, number]>> = {
   I: [[0, 0], [1, 0], [2, 0], [3, 0]],
@@ -45,20 +48,32 @@ function nextRandom(state: number): number {
   return value >>> 0;
 }
 
-function shapeFor(seed: number, pieceIndex: number, rotations: number): Array<[number, number]> {
+function pieceFor(
+  seed: number,
+  pieceIndex: number,
+  rotations: number,
+): { cells: Array<[number, number]>; powerUp: "freeze" | "bomb" | null } {
   let state = seed >>> 0;
   for (let index = 0; index <= pieceIndex; index += 1) state = nextRandom(state);
   let cells = SHAPES[TYPES[state % TYPES.length]].map(([x, y]) => [x, y] as [number, number]);
   for (let index = 0; index < rotations; index += 1) cells = rotate(cells);
-  return cells;
+  const specialRoll = state / 0x100000000;
+  const powerUp = specialRoll < SPECIAL_CHANCE
+    ? (specialRoll < SPECIAL_CHANCE / 2 ? "freeze" : "bomb")
+    : null;
+  return { cells, powerUp };
 }
 
 export function applyScoring(
   score: number,
   level: number,
   clearedRows: number,
+  anchorCombo = 1,
 ): { score: number; level: number } {
-  const nextScore = score + (40 + clearedRows * 500) * level;
+  const clearCombo = clearedRows > 0 ? Math.min(MAX_COMBO, anchorCombo + 1) : anchorCombo;
+  const nextScore = score
+    + 40 * level * anchorCombo
+    + clearedRows * 500 * level * clearCombo;
   return {
     score: nextScore,
     level: Math.max(level, 1 + Math.floor(nextScore / SCORE_PER_LEVEL)),
@@ -80,6 +95,8 @@ export function replayRun(
   let lavaTop = START_LAVA_TOP;
   let lavaPausedUntil = 0;
   let contactPulseUntil = 0;
+  let combo = 1;
+  let lastAnchorAt = 0;
 
   function advanceLava(targetMs: number): number | null {
     while (elapsedMs < targetMs) {
@@ -120,7 +137,7 @@ export function replayRun(
       action.row === undefined
     ) return null;
 
-    const cells = shapeFor(seed, index, action.rotation);
+    const { cells, powerUp } = pieceFor(seed, index, action.rotation);
     const positioned = cells.map(([x, y]) => ({ col: action.col! + x, row: action.row! + y }));
     if (positioned.some(({ col, row }) => col < 0 || col >= COLS || row < 0 || row >= ROWS || grid[row][col])) return null;
     if (positioned.some(({ row }) => BOARD_Y + (row + 1) * CELL >= lavaTop + CELL / 2)) return null;
@@ -133,7 +150,32 @@ export function replayRun(
     ));
     if (!supported) return null;
 
+    const isQuickPlacement = lastAnchorAt > 0 && action.atMs - lastAnchorAt < COMBO_WINDOW_MS;
+    combo = isQuickPlacement ? Math.min(MAX_COMBO, combo + 1) : 1;
+    lastAnchorAt = action.atMs;
+    score += 40 * level * combo;
+
     for (const { col, row } of positioned) grid[row][col] = true;
+    if (powerUp === "freeze") {
+      lavaPausedUntil = Math.max(lavaPausedUntil, action.atMs + 3_000);
+    } else if (powerUp === "bomb") {
+      const protectedCells = new Set(positioned.map(({ col, row }) => `${col}:${row}`));
+      for (const { col, row } of positioned) {
+        for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+          for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
+            const targetCol = col + colOffset;
+            const targetRow = row + rowOffset;
+            if (
+              targetCol >= 0 && targetCol < COLS &&
+              targetRow >= 0 && targetRow < ROWS &&
+              !protectedCells.has(`${targetCol}:${targetRow}`)
+            ) grid[targetRow][targetCol] = false;
+          }
+        }
+      }
+      lavaTop = Math.min(START_LAVA_TOP, lavaTop + CELL * 2);
+    }
+
     const complete: number[] = [];
     for (let row = 0; row < ROWS; row += 1) {
       if (grid[row].every(Boolean)) complete.push(row);
@@ -143,7 +185,11 @@ export function replayRun(
       grid.unshift(Array<boolean>(COLS).fill(false));
     }
     lavaTop = Math.min(START_LAVA_TOP, lavaTop + complete.length * CELL * 2);
-    ({ score, level } = applyScoring(score, level, complete.length));
+    if (complete.length > 0) {
+      combo = Math.min(MAX_COMBO, combo + 1);
+      score += complete.length * 500 * level * combo;
+    }
+    level = Math.max(level, 1 + Math.floor(score / SCORE_PER_LEVEL));
   }
 
   if (endedAtMs < previousAtMs) return null;

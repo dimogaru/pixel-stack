@@ -100,6 +100,13 @@
       this.tone({ frequency: 85, endFrequency: 32, duration: 0.5, start: 0.035, type: 'square', volume: 0.58 });
     }
 
+    playCombo(multiplier) {
+      const step = Math.max(2, Math.min(4, multiplier)) - 2;
+      const root = 440 + step * 110;
+      this.tone({ frequency: root, endFrequency: root * 1.45, duration: 0.11, type: 'square', volume: 0.38 });
+      this.tone({ frequency: root * 1.5, endFrequency: root * 2, duration: 0.1, start: 0.07, type: 'square', volume: 0.3 });
+    }
+
     playGameOver() {
       [392, 330, 247, 165].forEach((frequency, index) => {
         this.tone({
