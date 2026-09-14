@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './gameRun';
 export * from './healthStatus';
 export * from './highScore';
+export * from './runAction';
+export * from './runActionKind';
 export * from './scoreInput';

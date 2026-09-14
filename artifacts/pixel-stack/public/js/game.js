@@ -146,6 +146,10 @@
       this.combo = 1;
       this.lastAnchorAt = 0;
       this.gameState = 'ready';
+      this.runStarted = false;
+      this.runSeed = null;
+      this.randomState = 0;
+      this.pieceCounter = 0;
     }
 
     create() {
@@ -205,6 +209,8 @@
       this.score = 0;
       this.level = 1;
       this.elapsedRun = 0;
+      this.runStarted = false;
+      this.pieceCounter = 0;
       this.combo = 1;
       this.lastAnchorAt = 0;
       this.themeIndex = 0;
@@ -283,6 +289,10 @@
 
     startRun() {
       if (this.gameState !== 'ready') return;
+      if (!this.runStarted) {
+        this.runStarted = true;
+        this.callbacks.onRunStart?.(this.runSeed !== null);
+      }
       this.setState('playing');
       this.callbacks.onMessage('DRAG UP · TAP QUICKLY TO ROTATE');
       this.showLevelAnnouncer();
@@ -341,8 +351,8 @@
 
     spawnPiece(pointerX = WIDTH / 2) {
       if (this.active || this.gameState === 'gameover') return;
-      const type = Phaser.Utils.Array.GetRandom(TYPES);
-      const specialRoll = Phaser.Math.RND.frac();
+      const type = this.nextPieceType();
+      const specialRoll = this.runSeed === null ? Phaser.Math.RND.frac() : this.nextRandomValue();
       const powerUp = specialRoll < SPECIAL_CHANCE
         ? (specialRoll < SPECIAL_CHANCE / 2 ? 'freeze' : 'bomb')
         : null;
@@ -359,7 +369,10 @@
         y: this.lavaTop - (size.height * CELL) / 2 - 8,
         falling: false,
         velocityY: 0,
+        pieceIndex: this.pieceCounter,
+        rotation: 0,
       };
+      this.pieceCounter += 1;
       this.callbacks.onMessage(powerUp
         ? `${POWER_UPS[powerUp].label} ${type} · TAP TO ROTATE OR DRAG UP`
         : `${type} PIECE · TAP TO ROTATE OR DRAG UP`);
@@ -379,6 +392,7 @@
         this.active.cells = previous;
         this.callbacks.onMessage('ROTATION BLOCKED');
       } else {
+        this.active.rotation = (this.active.rotation + 1) % 4;
         global.PixelStackAudio?.playRotate();
         this.callbacks.onMessage('ROTATED 90° · DRAG OR TAP AGAIN');
       }
@@ -447,6 +461,14 @@
       }
       this.active = null;
       this.score += 40 * this.level * this.combo;
+      this.callbacks.onRunAction?.({
+        kind: 'anchor',
+        pieceIndex: piece.pieceIndex,
+        rotation: piece.rotation,
+        col: Math.min(...placedCells.map(({ col }) => col)),
+        row: Math.min(...placedCells.map(({ row }) => row)),
+        atMs: Math.round(this.elapsedRun),
+      });
       this.callbacks.onScore(this.score);
       this.callbacks.onMessage('ANCHOR LOCKED · STRUCTURE STABLE');
       global.PixelStackAudio?.playSnap();
@@ -594,16 +616,14 @@
       }
 
       this.effects.push({ kind: 'line', rows: complete, until: this.time.now + 420 });
-      this.time.delayedCall(260, () => {
-        for (const row of [...complete].sort((a, b) => a - b)) {
-          this.grid.splice(row, 1);
-          this.grid.unshift(Array(COLS).fill(null));
-        }
-        this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + complete.length * CELL * 2);
-        this.score += complete.length * 500 * this.level * clearMultiplier;
-        this.callbacks.onScore(this.score);
-        this.callbacks.onMessage(`${complete.length} LINE${complete.length > 1 ? 'S' : ''} VENTED · LAVA PUSHED DOWN`);
-      });
+      for (const row of [...complete].sort((a, b) => a - b)) {
+        this.grid.splice(row, 1);
+        this.grid.unshift(Array(COLS).fill(null));
+      }
+      this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + complete.length * CELL * 2);
+      this.score += complete.length * 500 * this.level * clearMultiplier;
+      this.callbacks.onScore(this.score);
+      this.callbacks.onMessage(`${complete.length} LINE${complete.length > 1 ? 'S' : ''} VENTED · LAVA PUSHED DOWN`);
     }
 
     update(time, delta) {
@@ -614,7 +634,7 @@
 
       if (this.gameState === 'playing') {
         this.elapsedRun += elapsed;
-        if (this.combo > 1 && this.lastAnchorAt > 0 && time - this.lastAnchorAt >= COMBO_WINDOW_MS) {
+        if (this.combo > 1 && this.lastAnchorAt > 0 && this.elapsedRun - this.lastAnchorAt >= COMBO_WINDOW_MS) {
           this.setCombo(1);
         }
         const nextLevel = 1 + Math.floor(this.score / SCORE_PER_LEVEL);
@@ -632,14 +652,14 @@
           }
         }
 
-        this.updateFreezeCountdown(time);
-        if (time >= this.lavaPausedUntil) {
+        this.updateFreezeCountdown(this.elapsedRun);
+        if (this.elapsedRun > this.lavaPausedUntil) {
           const lavaSpeed = 0.0075 + (this.level - 1) * 0.0022;
           this.lavaTop -= elapsed * lavaSpeed;
         }
 
         this.updateFallingPiece(elapsed);
-        this.detectLavaContact(time);
+        this.detectLavaContact(this.elapsedRun);
         if (this.lavaTop <= CEILING_Y + 2) this.endRun();
       }
 
@@ -683,6 +703,7 @@
         this.burstAt(this.active.x, this.lavaTop, this.active.color, 15);
         this.active = null;
         this.score = Math.max(0, this.score - 25);
+        this.callbacks.onRunInvalid?.();
         this.callbacks.onScore(this.score);
         this.setCombo(1);
         this.lastAnchorAt = 0;
@@ -718,7 +739,7 @@
       global.PixelStackAudio?.playGameOver();
       this.flashBoard(this.currentTheme.lava, 620);
       this.callbacks.onMessage('FLUID BREACH · RUN ENDED');
-      this.callbacks.onGameOver?.(this.score);
+      this.callbacks.onGameOver?.(this.score, Math.round(this.elapsedRun));
     }
 
     flashBoard(color, duration) {
@@ -907,7 +928,7 @@
     }
 
     drawLava(time) {
-      const contact = time < this.contactPulseUntil;
+      const contact = this.elapsedRun < this.contactPulseUntil;
       const surface = this.lavaTop + Math.sin(time / 240) * 3;
       this.graphics.fillStyle(contact ? this.currentTheme.lavaLight : this.currentTheme.lava, 0.96);
       this.graphics.beginPath();
@@ -923,6 +944,29 @@
       for (let x = 0; x < WIDTH; x += 20) {
         this.graphics.fillRect(x, this.lavaTop - 2 + Math.sin(time / 160 + x) * 2, 11, 3);
       }
+    }
+
+    setRunSeed(seed) {
+      if (this.gameState !== 'ready' || this.runStarted) return;
+      this.runSeed = Number.isInteger(seed) ? seed >>> 0 : null;
+      this.randomState = this.runSeed || 0;
+      this.pieceCounter = 0;
+      this.active = null;
+      this.spawnPiece(WIDTH / 2);
+    }
+
+    nextPieceType() {
+      if (this.runSeed === null) return Phaser.Utils.Array.GetRandom(TYPES);
+      return TYPES[this.nextRandomValue() % TYPES.length];
+    }
+
+    nextRandomValue() {
+      let value = this.randomState >>> 0;
+      value ^= value << 13;
+      value ^= value >>> 17;
+      value ^= value << 5;
+      this.randomState = value >>> 0;
+      return this.randomState;
     }
   }
 

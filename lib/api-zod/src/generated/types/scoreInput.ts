@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { RunAction } from './runAction';
 
 export interface ScoreInput {
   /**
@@ -15,4 +16,13 @@ export interface ScoreInput {
   nickname: string;
   /** @minimum 0 */
   score: number;
+  /** @minLength 1 */
+  proof: string;
+  /** @maxItems 1000 */
+  actions: RunAction[];
+  /**
+     * @minimum 0
+     * @maximum 7200000
+     */
+  endedAtMs: number;
 }

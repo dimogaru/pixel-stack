@@ -9,6 +9,20 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Issue a server-verified game run
+ */
+
+export const startRunResponseSeedMax = 4294967295;
+
+
+
+export const StartRunResponse = zod.object({
+  "proof": zod.string().min(1),
+  "seed": zod.number().int().min(1).max(startRunResponseSeedMax)
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -45,10 +59,40 @@ export const submitScoreBodyNicknameRegExp = new RegExp('^[A-Za-z0-9_-]+$');
 export const submitScoreBodyScoreMin = 0;
 
 
+export const submitScoreBodyActionsItemPieceIndexMin = 0;
+
+export const submitScoreBodyActionsItemRotationMin = 0;
+export const submitScoreBodyActionsItemRotationMax = 3;
+
+export const submitScoreBodyActionsItemColMin = 0;
+export const submitScoreBodyActionsItemColMax = 9;
+
+export const submitScoreBodyActionsItemRowMin = 0;
+export const submitScoreBodyActionsItemRowMax = 17;
+
+export const submitScoreBodyActionsItemAtMsMin = 0;
+export const submitScoreBodyActionsItemAtMsMax = 7200000;
+
+export const submitScoreBodyActionsMax = 1000;
+
+export const submitScoreBodyEndedAtMsMin = 0;
+export const submitScoreBodyEndedAtMsMax = 7200000;
+
+
 
 export const SubmitScoreBody = zod.object({
   "nickname": zod.string().min(1).max(submitScoreBodyNicknameMax).regex(submitScoreBodyNicknameRegExp),
-  "score": zod.number().int().min(submitScoreBodyScoreMin)
+  "score": zod.number().int().min(submitScoreBodyScoreMin),
+  "proof": zod.string().min(1),
+  "actions": zod.array(zod.object({
+  "kind": zod.enum(['anchor']),
+  "pieceIndex": zod.number().int().min(submitScoreBodyActionsItemPieceIndexMin),
+  "rotation": zod.number().int().min(submitScoreBodyActionsItemRotationMin).max(submitScoreBodyActionsItemRotationMax).optional(),
+  "col": zod.number().int().min(submitScoreBodyActionsItemColMin).max(submitScoreBodyActionsItemColMax).optional(),
+  "row": zod.number().int().min(submitScoreBodyActionsItemRowMin).max(submitScoreBodyActionsItemRowMax).optional(),
+  "atMs": zod.number().int().min(submitScoreBodyActionsItemAtMsMin).max(submitScoreBodyActionsItemAtMsMax)
+})).max(submitScoreBodyActionsMax),
+  "endedAtMs": zod.number().int().min(submitScoreBodyEndedAtMsMin).max(submitScoreBodyEndedAtMsMax)
 })
 
 export const submitScoreResponseNicknameMax = 10;

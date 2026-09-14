@@ -18,6 +18,49 @@ export interface HighScore {
   created_at: string;
 }
 
+export interface GameRun {
+  /** @minLength 1 */
+  proof: string;
+  /**
+     * @minimum 1
+     * @maximum 4294967295
+     */
+  seed: number;
+}
+
+export type RunActionKind = typeof RunActionKind[keyof typeof RunActionKind];
+
+
+export const RunActionKind = {
+  anchor: 'anchor',
+} as const;
+
+export interface RunAction {
+  kind: RunActionKind;
+  /** @minimum 0 */
+  pieceIndex: number;
+  /**
+     * @minimum 0
+     * @maximum 3
+     */
+  rotation?: number;
+  /**
+     * @minimum 0
+     * @maximum 9
+     */
+  col?: number;
+  /**
+     * @minimum 0
+     * @maximum 17
+     */
+  row?: number;
+  /**
+     * @minimum 0
+     * @maximum 7200000
+     */
+  atMs: number;
+}
+
 export interface ScoreInput {
   /**
      * @minLength 1
@@ -27,5 +70,14 @@ export interface ScoreInput {
   nickname: string;
   /** @minimum 0 */
   score: number;
+  /** @minLength 1 */
+  proof: string;
+  /** @maxItems 1000 */
+  actions: RunAction[];
+  /**
+     * @minimum 0
+     * @maximum 7200000
+     */
+  endedAtMs: number;
 }
 

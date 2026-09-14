@@ -18,10 +18,20 @@ type GameCallbacks = {
   onCombo: (combo: number) => void;
   onState: (state: GameState) => void;
   onMessage: (message: string) => void;
-  onGameOver: (score: number) => void;
+  onGameOver: (score: number, endedAtMs: number) => void;
+  onRunStart: (verified: boolean) => void;
+  onRunAction: (action: RunAction) => void;
+  onRunInvalid: () => void;
 };
 
-declare global {
+type RunAction = {
+  kind: 'anchor';
+  pieceIndex: number;
+  rotation?: number;
+  col?: number;
+  row?: number;
+  atMs: number;
+};
   interface Window {
     PixelStackAudio: {
       unlock: () => Promise<boolean>;
@@ -35,13 +45,13 @@ declare global {
         callbacks: GameCallbacks,
       ) => {
         game: { destroy: (removeCanvas: boolean) => void };
-        scene: { gameState: GameState; togglePause: () => void };
+        scene: { gameState: GameState; togglePause: () => void; setRunSeed: (seed: number) => void };
       };
     };
   }
 }
 
-function GameCanvas({ callbacks, paused }: { callbacks: GameCallbacks; paused: boolean }) {
+function GameCanvas({ callbacks, paused, runSeed }: { callbacks: GameCallbacks; paused: boolean; runSeed: number | null }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ReturnType<typeof window.PixelStackGame.create> | null>(null);
 
@@ -70,6 +80,10 @@ function GameCanvas({ callbacks, paused }: { callbacks: GameCallbacks; paused: b
     }
   }, [paused]);
 
+  useEffect(() => {
+    if (runSeed !== null) engineRef.current?.scene.setRunSeed(runSeed);
+  }, [runSeed]);
+
   return <div ref={hostRef} className="game-canvas" data-testid="game-surface" />;
 }
 
@@ -90,6 +104,28 @@ function Home() {
   const [nickname, setNickname] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [submitMessage, setSubmitMessage] = useState('');
+  const runProofRef = useRef<string | null>(null);
+  const runActionsRef = useRef<RunAction[]>([]);
+  const endedAtMsRef = useRef<number | null>(null);
+  const serverRunRef = useRef<ServerRun | null>(null);
+  const [runSeed, setRunSeed] = useState<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    serverRunRef.current = null;
+    setRunSeed(null);
+    void fetch('/api/runs', { method: 'POST', signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not start verified run');
+        const data = await response.json() as ServerRun;
+        serverRunRef.current = data;
+        setRunSeed(data.seed);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) serverRunRef.current = null;
+      });
+    return () => controller.abort();
+  }, [runKey]);
 
   useEffect(() => {
     window.PixelStackAudio?.setMuted(!soundOn);
@@ -139,8 +175,20 @@ function Home() {
       if (state === 'playing') setPaused(false);
     },
     onMessage: setMessage,
-    onGameOver: (finalScore) => {
-      void checkQualification(finalScore);
+    onRunStart: (verified) => {
+      runActionsRef.current = [];
+      endedAtMsRef.current = null;
+      runProofRef.current = verified ? serverRunRef.current?.proof ?? null : null;
+    },
+    onRunAction: (action) => {
+      runActionsRef.current.push(action);
+    },
+    onRunInvalid: () => {
+      runProofRef.current = null;
+    },
+    onGameOver: (finalScore, endedAtMs) => {
+      endedAtMsRef.current = endedAtMs;
+      if (runProofRef.current) void checkQualification(finalScore);
     },
   }), [checkQualification]);
 
@@ -158,10 +206,17 @@ function Home() {
     setSubmitStatus('submitting');
     setSubmitMessage('');
     try {
+      if (!runProofRef.current || endedAtMsRef.current === null) throw new Error('Run was not verified');
       const response = await fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname: cleanNickname, score: qualifyingScore }),
+        body: JSON.stringify({
+          nickname: cleanNickname,
+          score: qualifyingScore,
+          proof: runProofRef.current,
+          actions: runActionsRef.current,
+          endedAtMs: endedAtMsRef.current,
+        }),
       });
       if (response.status === 409) {
         setQualifyingScore(null);
@@ -171,6 +226,7 @@ function Home() {
       }
       if (!response.ok) throw new Error('Could not submit score');
       setSubmitStatus('submitted');
+      runProofRef.current = null;
       setSubmitMessage('MARCA REGISTRADA EN LA RED GLOBAL');
       await loadScores();
     } catch {
@@ -190,6 +246,9 @@ function Home() {
     setSubmitStatus('idle');
     setSubmitMessage('');
     setNickname('');
+    runProofRef.current = null;
+    runActionsRef.current = [];
+    endedAtMsRef.current = null;
     setRunKey((value) => value + 1);
   };
 
@@ -234,7 +293,7 @@ function Home() {
         </div>
 
         <div className="play-area">
-          <GameCanvas key={runKey} callbacks={callbacks} paused={paused} />
+          <GameCanvas key={runKey} callbacks={callbacks} paused={paused} runSeed={runSeed} />
           <div className="play-copy top-copy">
             <span className="copy-line">CEILING LOCK</span>
             <span className="copy-line faint">TAP · DRAG · RELEASE</span>
@@ -383,3 +442,5 @@ function App() {
 }
 
 export default App;
+
+type ServerRun = { proof: string; seed: number };

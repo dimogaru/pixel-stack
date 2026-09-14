@@ -1,18 +1,59 @@
-import { Router, type IRouter } from "express";
-import { ListScoresResponse, SubmitScoreBody, SubmitScoreResponse } from "@workspace/api-zod";
+import { Router, type IRouter, type Request } from "express";
+import { ListScoresResponse, StartRunResponse, SubmitScoreBody, SubmitScoreResponse } from "@workspace/api-zod";
 import { insertHighScore, listHighScores } from "../lib/leaderboard-db";
+import { issueRunProof, verifyAndConsumeRunProof } from "../lib/run-proof";
+import { replayRun } from "../lib/run-replay";
 
 const router: IRouter = Router();
+const requests = new Map<string, number[]>();
+
+function isRateLimited(key: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const recent = (requests.get(key) ?? []).filter((time) => now - time < windowMs);
+  recent.push(now);
+  requests.set(key, recent);
+  return recent.length > limit;
+}
+
+function requestOrigin(req: Request): string {
+  return req.ip ?? req.socket.remoteAddress ?? "unknown";
+}
+
+router.post("/runs", (req, res): void => {
+  if (isRateLimited(`run:${requestOrigin(req)}`, 10, 60_000)) {
+    res.status(429).json({ error: "Too many game runs" });
+    return;
+  }
+  res.status(201).json(StartRunResponse.parse(issueRunProof()));
+});
 
 router.get("/scores", (_req, res): void => {
   res.json(ListScoresResponse.parse(listHighScores()));
 });
 
 router.post("/scores", (req, res): void => {
+  if (isRateLimited(`score:${requestOrigin(req)}`, 5, 60_000)) {
+    res.status(429).json({ error: "Too many score submissions" });
+    return;
+  }
   const parsed = SubmitScoreBody.safeParse(req.body);
   if (!parsed.success) {
     req.log.warn({ validation: parsed.error.issues }, "Invalid leaderboard submission");
     res.status(400).json({ error: "Nickname or score is invalid" });
+    return;
+  }
+
+  const run = verifyAndConsumeRunProof(parsed.data.proof);
+  if (!run) {
+    res.status(401).json({ error: "Run proof is invalid, expired, or already used" });
+    return;
+  }
+
+  const elapsedMs = Date.now() - run.issuedAt;
+  const recalculated = replayRun(run.seed, parsed.data.actions, parsed.data.endedAtMs, elapsedMs);
+  if (recalculated === null || recalculated !== parsed.data.score) {
+    req.log.warn({ submitted: parsed.data.score, recalculated }, "Leaderboard score mismatch");
+    res.status(400).json({ error: "Score does not match a valid game replay" });
     return;
   }
 

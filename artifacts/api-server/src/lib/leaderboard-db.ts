@@ -30,6 +30,13 @@ database.exec(`
   CREATE INDEX IF NOT EXISTS high_scores_ranking
   ON high_scores(score DESC, created_at ASC, id ASC)
 `);
+database.exec(`
+  CREATE TABLE IF NOT EXISTS game_runs (
+    id TEXT PRIMARY KEY,
+    issued_at INTEGER NOT NULL,
+    consumed_at INTEGER
+  )
+`);
 
 const listStatement = database.prepare(`
   SELECT id, nickname, score, created_at
@@ -59,6 +66,17 @@ const pruneStatement = database.prepare(`
     LIMIT 10
   )
 `);
+const insertRunStatement = database.prepare(`
+  INSERT INTO game_runs (id, issued_at) VALUES (?, ?)
+`);
+const consumeRunStatement = database.prepare(`
+  UPDATE game_runs
+  SET consumed_at = ?
+  WHERE id = ? AND consumed_at IS NULL
+`);
+const pruneRunsStatement = database.prepare(`
+  DELETE FROM game_runs WHERE issued_at < ?
+`);
 
 export function listHighScores(): HighScore[] {
   return listStatement.all() as unknown as HighScore[];
@@ -87,4 +105,13 @@ export function insertHighScore(nickname: string, score: number): HighScore | nu
     database.exec("ROLLBACK");
     throw error;
   }
+}
+
+export function createGameRun(id: string, issuedAt: number): void {
+  insertRunStatement.run(id, issuedAt);
+  pruneRunsStatement.run(issuedAt - 24 * 60 * 60 * 1000);
+}
+
+export function consumeGameRun(id: string, consumedAt: number): boolean {
+  return consumeRunStatement.run(consumedAt, id).changes === 1;
 }

@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GameRun,
   HealthStatus,
   HighScore,
   ScoreInput
@@ -51,6 +52,80 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getStartRunUrl = () => {
+
+
+
+
+  return `/api/runs`
+}
+
+/**
+ * @summary Issue a server-verified game run
+ */
+export const startRun = async ( options?: Parameters<typeof customFetch>[1]): Promise<GameRun> => {
+
+  return customFetch<GameRun>(getStartRunUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartRunMutationKey = () => ['startRun'] as const;
+
+export const getStartRunMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startRun>>, TError,void, TContext> => {
+
+const mutationKey = getStartRunMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startRun>>, void> = () => {
+
+
+          return  startRun(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartRunMutationResult = NonNullable<Awaited<ReturnType<typeof startRun>>>
+
+    export type StartRunMutationError = ErrorType<void>
+
+
+    /**
+ * @summary Issue a server-verified game run
+ */
+export const useStartRun = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startRun>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startRun>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getStartRunMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 

@@ -1,0 +1,1 @@
+- [Integridad de puntuaciones](score-integrity.md) — una prueba de inicio firmada no basta; el servidor debe derivar la puntuación de una repetición mecánicamente válida.
