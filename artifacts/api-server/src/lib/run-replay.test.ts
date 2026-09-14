@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyScoring, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
+import { applyScoring, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
 
 const validFirstAnchor: RunAction = {
   kind: "anchor",
@@ -12,7 +12,7 @@ const validFirstAnchor: RunAction = {
 };
 
 test("derives score from a mechanically valid seeded placement", () => {
-  assert.equal(replayRun(1, [validFirstAnchor], 88_100, 89_100), 40);
+  assert.equal(replayRun(1, [validFirstAnchor], 77_100, 78_100), 40);
 });
 
 test("rejects skipped pieces used to cherry-pick the seeded sequence", () => {
@@ -108,4 +108,18 @@ test("compacts lower rows toward the ceiling and resolves chained clears", () =>
   assert.equal(grid[2][0], true);
   assert.equal(grid[2].filter(Boolean).length, 1);
   assert.equal(grid[17].some(Boolean), false);
+});
+
+test("melts anchored blocks progressively from the lava surface upward", () => {
+  const grid = Array.from({ length: 18 }, () => Array<boolean>(10).fill(false));
+  grid[10][0] = true;
+  grid[11][1] = true;
+  grid[12][2] = true;
+
+  assert.equal(meltGridAtLava(grid, 76 + 12 * 36), 2);
+  assert.equal(grid[10][0], true);
+  assert.equal(grid[11][1], false);
+  assert.equal(grid[12][2], false);
+  assert.equal(meltGridAtLava(grid, 76 + 11 * 36), 1);
+  assert.equal(grid.flat().some(Boolean), false);
 });

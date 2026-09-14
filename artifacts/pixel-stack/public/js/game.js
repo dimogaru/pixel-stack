@@ -658,6 +658,7 @@
 
       if (this.gameState === 'playing') {
         this.elapsedRun += elapsed;
+        this.meltBlocksInLava(time);
         if (this.hasLavaBreach()) {
           this.endRun();
         }
@@ -688,6 +689,7 @@
           this.lavaTop -= elapsed * lavaSpeed;
         }
 
+        this.meltBlocksInLava(time);
         if (this.hasLavaBreach()) {
           this.endRun();
         } else {
@@ -716,6 +718,37 @@
       }
       this.effects = this.effects.filter((effect) => effect.until > time);
       this.draw(time);
+    }
+
+    meltBlocksInLava(time) {
+      let melted = 0;
+      for (let row = ROWS - 1; row >= 0; row -= 1) {
+        const blockBottom = BOARD_Y + (row + 1) * CELL;
+        if (blockBottom < this.lavaTop) continue;
+        for (let col = 0; col < COLS; col += 1) {
+          const block = this.grid[row][col];
+          if (!block) continue;
+          const x = BOARD_X + col * CELL + CELL / 2;
+          const y = BOARD_Y + row * CELL + CELL / 2;
+          this.grid[row][col] = null;
+          melted += 1;
+          this.burstAt(x, y, this.currentTheme.lavaLight, 9);
+          this.effects.push({
+            kind: 'melt',
+            x,
+            y,
+            color: block.color,
+            born: time,
+            until: time + 620,
+          });
+        }
+      }
+      if (melted > 0) {
+        this.contactPulseUntil = this.elapsedRun + 420;
+        this.flashBoard(this.currentTheme.lavaLight, 180);
+        global.PixelStackAudio?.playMelt?.(melted);
+      }
+      return melted;
     }
 
     updateFallingPiece(elapsed) {
@@ -982,6 +1015,16 @@
           const y = effect.y + effect.vy * age + 220 * age * age;
           this.graphics.fillStyle(effect.color, alpha);
           this.graphics.fillRect(x, y, 4, 4);
+        } else if (effect.kind === 'melt') {
+          const progress = Math.min(1, (time - effect.born) / (effect.until - effect.born));
+          const alpha = Math.max(0, 1 - progress);
+          this.graphics.fillStyle(this.currentTheme.lavaLight, alpha * 0.55);
+          this.graphics.fillRect(effect.x - CELL / 2, effect.y - CELL / 2, CELL, CELL);
+          this.graphics.fillStyle(0x24141f, alpha * 0.42);
+          this.graphics.fillCircle(effect.x - 7, effect.y - 10 - progress * 24, 7 + progress * 5);
+          this.graphics.fillCircle(effect.x + 6, effect.y - 5 - progress * 31, 5 + progress * 4);
+          this.graphics.lineStyle(2, effect.color, alpha * 0.8);
+          this.graphics.strokeRect(effect.x - CELL / 2 + 2, effect.y - CELL / 2 + 2, CELL - 4, CELL - 4);
         }
       }
     }

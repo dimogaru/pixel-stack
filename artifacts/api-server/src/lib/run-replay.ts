@@ -106,6 +106,19 @@ export function resolveCompactClears(
   return { clearedRows, combo, scoreBonus };
 }
 
+export function meltGridAtLava(grid: boolean[][], lavaTop: number): number {
+  let melted = 0;
+  for (let row = ROWS - 1; row >= 0; row -= 1) {
+    if (BOARD_Y + (row + 1) * CELL < lavaTop) continue;
+    for (let col = 0; col < COLS; col += 1) {
+      if (!grid[row][col]) continue;
+      grid[row][col] = false;
+      melted += 1;
+    }
+  }
+  return melted;
+}
+
 export function replayRun(
   seed: number,
   actions: RunAction[],
@@ -120,7 +133,6 @@ export function replayRun(
   let elapsedMs = 0;
   let lavaTop = START_LAVA_TOP;
   let lavaPausedUntil = 0;
-  let contactPulseUntil = 0;
   let combo = 1;
   let lastAnchorAt = 0;
 
@@ -133,19 +145,7 @@ export function replayRun(
         lavaTop -= step * lavaSpeed;
       }
 
-      let touching = false;
-      for (let row = 0; row < ROWS && !touching; row += 1) {
-        for (let col = 0; col < COLS; col += 1) {
-          if (grid[row][col] && BOARD_Y + (row + 1) * CELL >= lavaTop) {
-            touching = true;
-            break;
-          }
-        }
-      }
-      if (touching && elapsedMs > contactPulseUntil) {
-        lavaPausedUntil = elapsedMs + 650;
-        contactPulseUntil = elapsedMs + 1250;
-      }
+      meltGridAtLava(grid, lavaTop);
       if (lavaTop <= GAME_OVER_LAVA_TOP) return elapsedMs;
     }
     return null;

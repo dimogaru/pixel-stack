@@ -101,6 +101,12 @@
       this.tone({ frequency: 85, endFrequency: 32, duration: 0.5, start: 0.035, type: 'square', volume: 0.58 });
     }
 
+    playMelt(blockCount = 1) {
+      const weight = Math.min(5, Math.max(1, blockCount));
+      this.tone({ frequency: 240 + weight * 18, endFrequency: 72, duration: 0.24, type: 'sawtooth', volume: 0.3 });
+      this.tone({ frequency: 110, endFrequency: 48, duration: 0.2, start: 0.035, type: 'square', volume: 0.18 });
+    }
+
     playCombo(multiplier) {
       const step = Math.max(2, Math.min(4, multiplier)) - 2;
       const root = 440 + step * 110;
