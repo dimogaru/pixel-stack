@@ -70,14 +70,40 @@ export function applyScoring(
   clearedRows: number,
   anchorCombo = 1,
 ): { score: number; level: number } {
-  const clearCombo = clearedRows > 0 ? Math.min(MAX_COMBO, anchorCombo + 1) : anchorCombo;
-  const nextScore = score
-    + 40 * level * anchorCombo
-    + clearedRows * 500 * level * clearCombo;
+  let nextScore = score + 40 * level * anchorCombo;
+  let clearCombo = anchorCombo;
+  for (let cleared = 0; cleared < clearedRows; cleared += 1) {
+    clearCombo = Math.min(MAX_COMBO, clearCombo + 1);
+    nextScore += 500 * level * clearCombo;
+  }
   return {
     score: nextScore,
     level: Math.max(level, 1 + Math.floor(nextScore / SCORE_PER_LEVEL)),
   };
+}
+
+export function resolveCompactClears(
+  grid: boolean[][],
+  startingCombo: number,
+  level: number,
+): { clearedRows: number; combo: number; scoreBonus: number } {
+  let clearedRows = 0;
+  let combo = startingCombo;
+  let scoreBonus = 0;
+  let completeRow = grid.findIndex((row) => row.every(Boolean));
+
+  while (completeRow !== -1) {
+    combo = Math.min(MAX_COMBO, combo + 1);
+    clearedRows += 1;
+    scoreBonus += 500 * level * combo;
+    for (let row = completeRow; row < ROWS - 1; row += 1) {
+      grid[row] = grid[row + 1];
+    }
+    grid[ROWS - 1] = Array<boolean>(COLS).fill(false);
+    completeRow = grid.findIndex((row) => row.every(Boolean));
+  }
+
+  return { clearedRows, combo, scoreBonus };
 }
 
 export function replayRun(
@@ -176,19 +202,10 @@ export function replayRun(
       lavaTop = Math.min(START_LAVA_TOP, lavaTop + CELL * 2);
     }
 
-    const complete: number[] = [];
-    for (let row = 0; row < ROWS; row += 1) {
-      if (grid[row].every(Boolean)) complete.push(row);
-    }
-    for (const row of complete.sort((a, b) => a - b)) {
-      grid.splice(row, 1);
-      grid.unshift(Array<boolean>(COLS).fill(false));
-    }
-    lavaTop = Math.min(START_LAVA_TOP, lavaTop + complete.length * CELL * 2);
-    if (complete.length > 0) {
-      combo = Math.min(MAX_COMBO, combo + 1);
-      score += complete.length * 500 * level * combo;
-    }
+    const clearResult = resolveCompactClears(grid, combo, level);
+    combo = clearResult.combo;
+    score += clearResult.scoreBonus;
+    lavaTop = Math.min(START_LAVA_TOP, lavaTop + clearResult.clearedRows * CELL * 2);
     level = Math.max(level, 1 + Math.floor(score / SCORE_PER_LEVEL));
   }
 

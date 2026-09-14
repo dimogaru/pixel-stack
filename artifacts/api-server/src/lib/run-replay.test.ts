@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyScoring, replayRun, type RunAction } from "./run-replay.ts";
+import { applyScoring, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
 
 const validFirstAnchor: RunAction = {
   kind: "anchor",
@@ -90,4 +90,22 @@ test("matches the client level transition at each 1000 score points", () => {
 test("applies fast-placement and line-clear combo multipliers", () => {
   assert.deepEqual(applyScoring(0, 1, 0, 3), { score: 120, level: 1 });
   assert.deepEqual(applyScoring(0, 1, 1, 3), { score: 2120, level: 3 });
+  assert.deepEqual(applyScoring(0, 1, 2), { score: 2540, level: 3 });
+});
+
+test("compacts lower rows toward the ceiling and resolves chained clears", () => {
+  const empty = () => Array<boolean>(10).fill(false);
+  const grid = Array.from({ length: 18 }, empty);
+  grid[2] = Array<boolean>(10).fill(true);
+  grid[3] = Array<boolean>(10).fill(true);
+  grid[4][0] = true;
+
+  assert.deepEqual(resolveCompactClears(grid, 1, 1), {
+    clearedRows: 2,
+    combo: 3,
+    scoreBonus: 2500,
+  });
+  assert.equal(grid[2][0], true);
+  assert.equal(grid[2].filter(Boolean).length, 1);
+  assert.equal(grid[17].some(Boolean), false);
 });

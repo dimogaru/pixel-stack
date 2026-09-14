@@ -77,11 +77,12 @@
       this.tone({ frequency: 465, endFrequency: 820, duration: 0.055, start: 0.045, type: 'square', volume: 0.34 });
     }
 
-    playClearLine() {
+    playClearLine(multiplier = 1) {
+      const pitch = 1 + (Math.max(1, Math.min(4, multiplier)) - 1) * 0.12;
       [262, 330, 392, 523, 784].forEach((frequency, index) => {
         this.tone({
-          frequency,
-          endFrequency: frequency * 1.08,
+          frequency: frequency * pitch,
+          endFrequency: frequency * pitch * 1.08,
           duration: 0.105,
           start: index * 0.055,
           type: index % 2 ? 'square' : 'sawtooth',

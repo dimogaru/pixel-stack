@@ -608,37 +608,45 @@
     }
 
     clearCompletedRows() {
-      const complete = [];
-      for (let row = 0; row < ROWS; row += 1) {
-        if (this.grid[row].every(Boolean)) complete.push(row);
-      }
-      if (!complete.length) return;
-      global.PixelStackAudio?.playClearLine();
-      this.setCombo(Math.min(MAX_COMBO, this.combo + 1));
-      const clearMultiplier = this.combo;
-      if (this.combo > 1) {
-        this.showFloatingText(t('combo', { value: this.combo }), this.currentTheme.accent, HEIGHT * 0.38);
-        global.PixelStackAudio?.playCombo?.(this.combo);
-      }
-      this.cameras.main.shake(140, 0.0025);
+      let clearedRows = 0;
+      let completeRow = this.grid.findIndex((row) => row.every(Boolean));
+      while (completeRow !== -1) {
+        this.setCombo(Math.min(MAX_COMBO, this.combo + 1));
+        const clearMultiplier = this.combo;
+        clearedRows += 1;
 
-      for (const row of complete) {
         for (let col = 0; col < COLS; col += 1) {
-          this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, this.grid[row][col].color, 5);
+          const block = this.grid[completeRow][col];
+          this.burstAt(
+            BOARD_X + col * CELL + CELL / 2,
+            BOARD_Y + completeRow * CELL + CELL / 2,
+            block.color,
+            5 + clearedRows,
+          );
         }
+
+        this.effects.push({ kind: 'line', rows: [completeRow], until: this.time.now + 420 });
+        for (let row = completeRow; row < ROWS - 1; row += 1) {
+          this.grid[row] = this.grid[row + 1];
+        }
+        this.grid[ROWS - 1] = Array(COLS).fill(null);
+
+        this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
+        this.score += 500 * this.level * clearMultiplier;
+        global.PixelStackAudio?.playClearLine?.(clearMultiplier);
+        global.PixelStackAudio?.playCombo?.(clearMultiplier);
+        this.showFloatingText(t('combo', { value: clearMultiplier }), this.currentTheme.accent, HEIGHT * 0.38);
+        this.cameras.main.shake(140 + clearedRows * 25, 0.0025 + clearedRows * 0.0004);
+        this.flashBoard(this.currentTheme.accent, 210 + clearedRows * 55);
+
+        completeRow = this.grid.findIndex((row) => row.every(Boolean));
       }
 
-      this.effects.push({ kind: 'line', rows: complete, until: this.time.now + 420 });
-      for (const row of [...complete].sort((a, b) => a - b)) {
-        this.grid.splice(row, 1);
-        this.grid.unshift(Array(COLS).fill(null));
-      }
-      this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + complete.length * CELL * 2);
-      this.score += complete.length * 500 * this.level * clearMultiplier;
+      if (!clearedRows) return;
       this.callbacks.onScore(this.score);
       this.callbacks.onMessage(t('linesVented', {
-        count: complete.length,
-        lines: t(complete.length > 1 ? 'lines' : 'line'),
+        count: clearedRows,
+        lines: t(clearedRows > 1 ? 'lines' : 'line'),
       }));
     }
 
