@@ -27,7 +27,14 @@
   const COMBO_WINDOW_MS = 2000;
   const MAX_COMBO = 4;
   const SPAWN_GRACE_MS = 1500;
+  const LAVA_BASE_SPEED = 0.0055;
+  const LAVA_SPEED_GROWTH = 1.06;
+  const LAVA_SPEED_CAP = 0.013;
   const levelForScore = (score) => Math.floor(Math.max(0, score) / SCORE_PER_LEVEL) + 1;
+  const lavaSpeedForLevel = (level) => Math.min(
+    LAVA_SPEED_CAP,
+    LAVA_BASE_SPEED * Math.pow(LAVA_SPEED_GROWTH, Math.max(0, level - 1)),
+  );
   const POWER_UPS = {
     freeze: { color: 0x36b9ff, label: 'FREEZE' },
     bomb: { color: 0xff315c, label: 'BOMB' },
@@ -706,7 +713,7 @@
 
         this.updateFreezeCountdown(this.elapsedRun);
         if (this.elapsedRun > this.lavaPausedUntil) {
-          const lavaSpeed = 0.0075 + (this.level - 1) * 0.0022;
+          const lavaSpeed = lavaSpeedForLevel(this.level);
           this.lavaTop -= elapsed * lavaSpeed;
         }
 

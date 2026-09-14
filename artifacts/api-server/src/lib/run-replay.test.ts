@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyScoring, levelForScore, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
+import { applyScoring, lavaSpeedForLevel, levelForScore, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
 
 const validFirstAnchor: RunAction = {
   kind: "anchor",
@@ -12,7 +12,7 @@ const validFirstAnchor: RunAction = {
 };
 
 test("derives score from a mechanically valid seeded placement", () => {
-  assert.equal(replayRun(1, [validFirstAnchor], 77_100, 78_100), 40);
+  assert.equal(replayRun(1, [validFirstAnchor], 104_800, 105_800), 40);
 });
 
 test("rejects skipped pieces used to cherry-pick the seeded sequence", () => {
@@ -91,6 +91,14 @@ test("matches the client level transition at each 1000 score points", () => {
   assert.equal(levelForScore(3_999), 4);
   assert.deepEqual(applyScoring(960, 1, 0), { score: 1000, level: 2 });
   assert.deepEqual(applyScoring(1000, 2, 1), { score: 3080, level: 4 });
+});
+
+test("raises lava speed gradually by 6 percent per level and enforces its cap", () => {
+  assert.equal(lavaSpeedForLevel(1), 0.0055);
+  assert.ok(Math.abs(lavaSpeedForLevel(2) / lavaSpeedForLevel(1) - 1.06) < 1e-10);
+  assert.ok(Math.abs(lavaSpeedForLevel(10) / lavaSpeedForLevel(9) - 1.06) < 1e-10);
+  assert.equal(lavaSpeedForLevel(100), 0.013);
+  assert.ok(lavaSpeedForLevel(100) < 0.014);
 });
 
 test("applies fast-placement and line-clear combo multipliers", () => {

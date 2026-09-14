@@ -19,6 +19,9 @@ const TERMINAL_TOLERANCE_MS = 1_000;
 const SPECIAL_CHANCE = 0.15;
 const COMBO_WINDOW_MS = 2_000;
 const MAX_COMBO = 4;
+const LAVA_BASE_SPEED = 0.0055;
+const LAVA_SPEED_GROWTH = 1.06;
+const LAVA_SPEED_CAP = 0.013;
 const TYPES = ["I", "O", "T", "L", "J", "S", "Z"] as const;
 const SHAPES: Record<(typeof TYPES)[number], Array<[number, number]>> = {
   I: [[0, 0], [1, 0], [2, 0], [3, 0]],
@@ -32,6 +35,13 @@ const SHAPES: Record<(typeof TYPES)[number], Array<[number, number]>> = {
 
 export function levelForScore(score: number): number {
   return Math.floor(Math.max(0, score) / SCORE_PER_LEVEL) + 1;
+}
+
+export function lavaSpeedForLevel(level: number): number {
+  return Math.min(
+    LAVA_SPEED_CAP,
+    LAVA_BASE_SPEED * Math.pow(LAVA_SPEED_GROWTH, Math.max(0, level - 1)),
+  );
 }
 
 function normalize(cells: Array<[number, number]>): Array<[number, number]> {
@@ -145,7 +155,7 @@ export function replayRun(
       const step = Math.min(SIMULATION_STEP_MS, targetMs - elapsedMs);
       elapsedMs += step;
       if (elapsedMs > lavaPausedUntil) {
-        const lavaSpeed = 0.0075 + (level - 1) * 0.0022;
+        const lavaSpeed = lavaSpeedForLevel(level);
         lavaTop -= step * lavaSpeed;
       }
 

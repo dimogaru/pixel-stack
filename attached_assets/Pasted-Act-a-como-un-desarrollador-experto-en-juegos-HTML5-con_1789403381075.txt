@@ -1,0 +1,33 @@
+Actúa como un desarrollador experto en juegos HTML5 con React, TypeScript y Phaser.
+
+Quiero consolidar, corregir y pulir de forma definitiva la jugabilidad, mecánicas y ritmo de "Pixel Stack" en App.tsx / GameCanvas. Por favor, aplica de manera limpia y modular los siguientes aspectos:
+
+1. REBALANCEO Y CONTROL DE LA VELOCIDAD DE LA LAVA:
+   - Reduce la velocidad base inicial de ascenso de la lava en el Nivel 1 para ofrecer un ritmo más controlado y jugable.
+   - Aplica una curva de incremento de velocidad por nivel muy suave y gradual (aumento de solo un 5% a 8% por nivel).
+   - Define un límite máximo de velocidad (Speed Cap) infranqueable para que la lava nunca suba más rápido de lo que un jugador humano pueda reaccionar en pantallas táctiles.
+
+2. MECÁNICA DE DERRETIDO PROGRESIVO Y FIN DE PARTIDA REAL:
+   - La lava debe consumir la estructura desde la parte inferior hacia arriba: en cuanto el fluido toca la base de cualquier bloque, este se desintegra con chispas/incandescencia y se elimina del tablero.
+   - El Game Over se activa ÚNICAMENTE cuando la superficie de la lava alcanza la línea del techo (habiendo consumido todos los bloques que estuvieran en su trayectoria).
+   - Al llegar al techo: detén por completo la lava, bloquea los controles táctiles y muestra el modal de Game Over (i18n).
+
+3. CORRECCIÓN DE PUNTUACIÓN Y NIVELES LINEALES:
+   - Elimina cualquier incremento pasivo de puntuación por tiempo o por frames. La partida comienza estrictamente en 0 puntos.
+   - Otorga puntos únicamente por acciones activas: anclar piezas, limpiar filas o activar combos.
+   - Calcula el nivel de forma lineal y secuencial: Nivel = Math.floor(score / 1000) + 1 (Nivel 1: 0-999 pts, Nivel 2: 1000-1999 pts, etc.).
+
+4. DESPLAZAMIENTO COMPACTO Y REACCIONES EN CADENA (COMBOS):
+   - Al completar una fila horizontal, elimínala y desplaza automáticamente hacia ARRIBA (un nivel) todas las filas situadas por DEBAJO de la eliminada para cerrar huecos y re-anclar al techo.
+   - Si el movimiento genera nuevas filas completas, desencadena automáticamente una reacción en cadena (Combo x2, x3...), sumando puntos extra y empujando la lava hacia abajo por cada fila desintegrada.
+
+5. POWER-UPS Y MEJORAS VISUALES:
+   - Pieza Congelante (15% probabilidad): Congela la lava 3 segundos mostrando un contador regresivo visible ("3", "2", "1", "0") sobre el fluido.
+   - Pieza Bomba: Explota al anclarse, destruye casillas adyacentes, empuja la lava y genera un temblor de cámara (Screen Shake).
+   - Incluye vista previa de la pieza siguiente (Next Piece Preview) en la UI y una ondulación dinámica (onda seno) en la superficie de la lava.
+
+6. RESETEO LIMPIO Y LOCALIZACIÓN (i18n):
+   - Al pulsar "REPLAY", resetea completamente el tablero, la lava y el estado 'isGameOver' sin falsos disparos de derrota.
+   - Adapta automáticamente los textos de la interfaz (Game Over, botones, notificaciones) al idioma del navegador mediante 'navigator.language' (Español / Inglés).
+
+Asegúrate de que el archivo compile perfectamente sin errores de TypeScript ni de sintaxis JSX.
