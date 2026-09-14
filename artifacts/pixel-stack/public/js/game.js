@@ -150,6 +150,7 @@
       this.runSeed = null;
       this.randomState = 0;
       this.pieceCounter = 0;
+      this.nextPiece = null;
     }
 
     create() {
@@ -211,6 +212,7 @@
       this.elapsedRun = 0;
       this.runStarted = false;
       this.pieceCounter = 0;
+      this.nextPiece = null;
       this.combo = 1;
       this.lastAnchorAt = 0;
       this.themeIndex = 0;
@@ -351,10 +353,9 @@
 
     spawnPiece(pointerX = WIDTH / 2) {
       if (this.active || this.gameState === 'gameover') return;
-      const { type, specialRoll } = this.nextPieceDescriptor();
-      const powerUp = specialRoll < SPECIAL_CHANCE
-        ? (specialRoll < SPECIAL_CHANCE / 2 ? 'freeze' : 'bomb')
-        : null;
+      const descriptor = this.nextPiece || this.generatePieceDescriptor();
+      this.nextPiece = this.generatePieceDescriptor();
+      const { type, powerUp, color } = descriptor;
       const cells = SHAPES[type].map((cell) => [...cell]);
       const size = dimensions(cells);
       const halfWidth = (size.width * CELL) / 2;
@@ -362,7 +363,7 @@
       this.active = {
         type,
         cells,
-        color: powerUp ? POWER_UPS[powerUp].color : COLORS[type],
+        color,
         powerUp,
         x,
         y: this.lavaTop - (size.height * CELL) / 2 - 8,
@@ -641,6 +642,12 @@
 
       if (this.gameState === 'playing') {
         this.elapsedRun += elapsed;
+        if (this.hasLavaBreach()) {
+          this.endRun();
+        }
+      }
+
+      if (this.gameState === 'playing') {
         if (this.combo > 1 && this.lastAnchorAt > 0 && this.elapsedRun - this.lastAnchorAt >= COMBO_WINDOW_MS) {
           this.setCombo(1);
         }
@@ -665,9 +672,11 @@
           this.lavaTop -= elapsed * lavaSpeed;
         }
 
-        this.updateFallingPiece(elapsed);
-        this.detectLavaContact(this.elapsedRun);
-        if (this.lavaTop <= CEILING_Y + 2) this.endRun();
+        if (this.hasLavaBreach()) {
+          this.endRun();
+        } else {
+          this.updateFallingPiece(elapsed);
+        }
       }
 
       const themeName = THEMES[this.themeIndex].name;
@@ -708,36 +717,35 @@
       const bottom = this.active.y + (size.height * CELL) / 2;
       if (bottom >= this.lavaTop) {
         this.burstAt(this.active.x, this.lavaTop, this.active.color, 15);
-        this.active = null;
-        this.score = Math.max(0, this.score - 25);
         this.callbacks.onRunInvalid?.();
-        this.callbacks.onScore(this.score);
-        this.setCombo(1);
-        this.lastAnchorAt = 0;
-        this.callbacks.onMessage('PIECE LOST TO THE LAVA');
-        this.contactPulseUntil = this.elapsedRun + 500;
         this.flashBoard(this.currentTheme.lava, 400);
-        this.spawnPiece();
+        this.endRun();
       }
     }
 
-    detectLavaContact(time) {
-      let touching = false;
-      for (let row = 0; row < ROWS; row += 1) {
-        for (let col = 0; col < COLS; col += 1) {
-          if (this.grid[row][col] && BOARD_Y + (row + 1) * CELL >= this.lavaTop) touching = true;
+    hasLavaBreach() {
+      if (this.lavaTop <= CEILING_Y + 2) return true;
+      if (this.active) {
+        const size = dimensions(this.active.cells);
+        const activeBottom = this.active.y + (size.height * CELL) / 2;
+        if (activeBottom >= this.lavaTop) {
+          this.callbacks.onRunInvalid?.();
+          return true;
         }
       }
-      if (touching && time > this.contactPulseUntil) {
-        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, time + 650);
-        this.contactPulseUntil = time + 1250;
-        this.callbacks.onMessage('STRUCTURE CONTACT · PRESSURE PAUSED');
+      for (let row = 0; row < ROWS; row += 1) {
+        for (let col = 0; col < COLS; col += 1) {
+          if (this.grid[row][col] && BOARD_Y + (row + 1) * CELL >= this.lavaTop) return true;
+        }
       }
+      return false;
     }
 
     endRun() {
       if (this.gameState === 'gameover') return;
       this.setState('gameover');
+      this.dragging = false;
+      this.pointerStart = null;
       this.active = null;
       this.freezeCountdownUntil = 0;
       this.freezeCountdownFading = false;
@@ -776,6 +784,7 @@
       g.fillStyle(this.currentTheme.board, 0.56);
       g.fillRect(16, 46, 388, 592);
       this.drawThemeBackdrop(time);
+      this.drawNextPiecePreview(time);
 
       g.lineStyle(1, this.currentTheme.grid, 0.3);
       for (let col = 0; col <= COLS; col += 1) {
@@ -870,6 +879,39 @@
       }
     }
 
+    drawNextPiecePreview(time) {
+      if (!this.nextPiece) return;
+      const g = this.graphics;
+      const panelX = 324;
+      const panelY = 10;
+      const panelWidth = 80;
+      const panelHeight = 58;
+      const cells = SHAPES[this.nextPiece.type];
+      const size = dimensions(cells);
+      const miniCell = 9;
+      const shapeWidth = size.width * miniCell;
+      const shapeHeight = size.height * miniCell;
+      const startX = panelX + (panelWidth - shapeWidth) / 2;
+      const startY = panelY + 24 + (panelHeight - 26 - shapeHeight) / 2;
+      const pulse = this.nextPiece.powerUp === 'bomb'
+        ? 0.72 + Math.sin(time / 90) * 0.28
+        : 1;
+
+      g.fillStyle(0x080611, 0.88);
+      g.fillRect(panelX, panelY, panelWidth, panelHeight);
+      g.lineStyle(2, this.nextPiece.color, 0.82);
+      g.strokeRect(panelX, panelY, panelWidth, panelHeight);
+      g.fillStyle(this.nextPiece.color, 0.86);
+      for (const [cellX, cellY] of cells) {
+        const x = startX + cellX * miniCell;
+        const y = startY + cellY * miniCell;
+        g.fillRect(x, y, miniCell - 1, miniCell - 1);
+        g.fillStyle(0xffffff, 0.34 * pulse);
+        g.fillRect(x + 1, y + 1, miniCell - 3, 2);
+        g.fillStyle(this.nextPiece.color, 0.86 * pulse);
+      }
+    }
+
     drawBlock(col, row, block, alpha, time) {
       const x = BOARD_X + col * CELL;
       const y = BOARD_Y + row * CELL;
@@ -959,7 +1001,20 @@
       this.randomState = this.runSeed || 0;
       this.pieceCounter = 0;
       this.active = null;
+      this.nextPiece = null;
       this.spawnPiece(WIDTH / 2);
+    }
+
+    generatePieceDescriptor() {
+      const { type, specialRoll } = this.nextPieceDescriptor();
+      const powerUp = specialRoll < SPECIAL_CHANCE
+        ? (specialRoll < SPECIAL_CHANCE / 2 ? 'freeze' : 'bomb')
+        : null;
+      return {
+        type,
+        powerUp,
+        color: powerUp ? POWER_UPS[powerUp].color : COLORS[type],
+      };
     }
 
     nextPieceDescriptor() {

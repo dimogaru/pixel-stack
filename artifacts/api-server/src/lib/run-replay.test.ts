@@ -12,7 +12,7 @@ const validFirstAnchor: RunAction = {
 };
 
 test("derives score from a mechanically valid seeded placement", () => {
-  assert.equal(replayRun(1, [validFirstAnchor], 88_100, 89_100), 40);
+  assert.equal(replayRun(1, [validFirstAnchor], 68_900, 69_900), 40);
 });
 
 test("rejects skipped pieces used to cherry-pick the seeded sequence", () => {

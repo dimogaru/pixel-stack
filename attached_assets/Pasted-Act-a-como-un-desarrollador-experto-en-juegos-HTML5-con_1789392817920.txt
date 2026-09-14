@@ -1,0 +1,27 @@
+Actúa como un desarrollador experto en juegos HTML5 con React, TypeScript y Phaser.
+
+Necesito aplicar un ajuste crítico de jugabilidad y añadir mejoras visuales al proyecto "Pixel Stack" (App.tsx / GameCanvas):
+
+1. CORRECCIÓN CRÍTICA DE GAME OVER (DETECCIÓN REAL):
+   - La partida debe terminar INMEDIATAMENTE cuando se cumpla cualquiera de estas condiciones:
+     a) La superficie de la lava alcanza o supera la línea límite superior ("techo").
+     b) El nivel de la lava sumerge la pieza actual o la estructura jugable.
+   - Al activarse el Game Over:
+     * Detén por completo el movimiento y ascenso de la lava.
+     * Cancela la generación de nuevas piezas y bloquea la interacción táctil (drag/tap).
+     * Reproduce el sonido de Game Over de la Web Audio API.
+     * Muestra la pantalla superpuesta de Game Over con la puntuación final y el envío al Leaderboard.
+   - Revisa el bucle principal (update/tick) para verificar la posición de la lava en CADA FRAME antes de procesar otras acciones.
+
+2. EFECTO DE TEMBLOR DE PANTALLA (SCREEN SHAKE):
+   - Añade un leve efecto de temblor de cámara cuando explote una Pieza Bomba o cuando se complete y destruya una fila de bloques.
+
+3. VISTA PREVIA DE PIEZA SIGUIENTE (NEXT PIECE PREVIEW):
+   - Muestra un recuadro neón en la esquina superior derecha del HUD con una representación visual en miniatura de la forma y color de la pieza que aparecerá a continuación.
+
+4. ONDULACIÓN DINÁMICA EN LA SUPERFICIE DE LA LAVA:
+   - Añade una deformación sinusoidal o movimiento de onda en el borde superior del fluido para darle una apariencia orgánica de magma/plasma en movimiento.
+
+5. MANTENER COMPATIBILIDAD INTEGRAL:
+   - Mantén intactos los Power-Ups (Pieza Congelante con contador "3, 2, 1, 0" sobre la lava y Pieza Bomba), el multiplicador de Combos, los sonidos nativos con Web Audio API, el sistema de niveles con cambio de temas gráficos y la base de datos SQLite para puntuaciones.
+   - Asegúrate de que el código compile perfectamente sin errores de TypeScript o sintaxis JSX.
