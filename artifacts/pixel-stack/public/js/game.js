@@ -42,24 +42,13 @@
     bomb: { color: 0xff315c, label: 'BOMB' },
   };
 
-  const COLORS = {
-    I: 0x55f2c6,
-    O: 0xffcf5a,
-    T: 0xf06cff,
-    L: 0xff8b4c,
-    J: 0x8292ff,
-    S: 0x7df07a,
-    Z: 0xff5f72,
-  };
-
   const SHAPES = {
-    I: [[0, 0], [1, 0], [2, 0], [3, 0]],
-    O: [[0, 0], [1, 0], [0, 1], [1, 1]],
-    T: [[0, 0], [1, 0], [2, 0], [1, 1]],
-    L: [[0, 0], [0, 1], [0, 2], [1, 2]],
-    J: [[1, 0], [1, 1], [1, 2], [0, 2]],
-    S: [[1, 0], [2, 0], [0, 1], [1, 1]],
-    Z: [[0, 0], [1, 0], [1, 1], [2, 1]],
+    LINE3: [[0, 0], [1, 0], [2, 0]],
+    CROSS5: [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+    U5: [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    STEP5: [[0, 0], [1, 0], [1, 1], [2, 1], [3, 1]],
+    L5: [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
+    POINTER3: [[0, 0], [1, 0], [0, 1]],
   };
 
   const TYPES = Object.keys(SHAPES);
@@ -483,7 +472,7 @@
       this.setCombo(1);
       for (const { col, row } of placedCells) {
         this.grid[row][col] = { color: piece.color, type: piece.type, powerUp: piece.powerUp };
-        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color, 3);
+        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color || this.currentTheme.accent, 3);
       }
       this.active = null;
       this.score += piece.powerUp ? SPECIAL_ANCHOR_POINTS : NORMAL_ANCHOR_POINTS;
@@ -544,7 +533,7 @@
         const [col, row] = key.split(':').map(Number);
         const block = this.grid[row][col];
         if (!block) continue;
-        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, block.color, 7);
+        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, block.color || this.currentTheme.accent, 7);
         this.grid[row][col] = null;
       }
       this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
@@ -633,7 +622,7 @@
           this.burstAt(
             BOARD_X + col * CELL + CELL / 2,
             BOARD_Y + completeRow * CELL + CELL / 2,
-            block.color,
+            block.color || this.currentTheme.accent,
             5 + clearedRows,
           );
         }
@@ -661,6 +650,7 @@
       this.callbacks.onMessage(t('linesVented', {
         count: clearedRows,
         lines: t(clearedRows > 1 ? 'lines' : 'line'),
+        cleared: t(clearedRows > 1 ? 'clearedPlural' : 'clearedSingular'),
       }));
       return clearedRows;
     }
@@ -736,7 +726,7 @@
             kind: 'melt',
             x,
             y,
-            color: block.color,
+            color: block.color || this.currentTheme.accent,
             born: time,
             until: time + 620,
           });
@@ -764,7 +754,7 @@
       const size = dimensions(this.active.cells);
       const bottom = this.active.y + (size.height * CELL) / 2;
       if (bottom >= this.lavaTop) {
-        this.burstAt(this.active.x, this.lavaTop, this.active.color, 15);
+        this.burstAt(this.active.x, this.lavaTop, this.active.color || this.currentTheme.accent, 15);
         this.active = null;
         this.callbacks.onRunInvalid?.();
         this.setCombo(1);
@@ -932,63 +922,91 @@
       const shapeHeight = size.height * miniCell;
       const startX = panelX + (panelWidth - shapeWidth) / 2;
       const startY = panelY + 24 + (panelHeight - 26 - shapeHeight) / 2;
-      const pulse = this.nextPiece.powerUp === 'bomb'
-        ? 0.72 + Math.sin(time / 90) * 0.28
-        : 1;
+      const isBomb = this.nextPiece.powerUp === 'bomb';
+      const isFreeze = this.nextPiece.powerUp === 'freeze';
+      const pulse = isBomb ? 0.72 + Math.sin(time / 90) * 0.28 :
+                    isFreeze ? 0.85 + Math.sin(time / 140) * 0.15 :
+                    0.9 + Math.sin(time / 200) * 0.1;
+      const color = this.nextPiece.powerUp ? this.nextPiece.color : this.currentTheme.accent;
 
       g.fillStyle(0x080611, 0.88);
       g.fillRect(panelX, panelY, panelWidth, panelHeight);
-      g.lineStyle(2, this.nextPiece.color, 0.82);
+      g.lineStyle(2, color, 0.82);
       g.strokeRect(panelX, panelY, panelWidth, panelHeight);
-      g.fillStyle(this.nextPiece.color, 0.86);
       for (const [cellX, cellY] of cells) {
         const x = startX + cellX * miniCell;
         const y = startY + cellY * miniCell;
-        g.fillRect(x, y, miniCell - 1, miniCell - 1);
-        g.fillStyle(0xffffff, 0.34 * pulse);
-        g.fillRect(x + 1, y + 1, miniCell - 3, 2);
-        g.fillStyle(this.nextPiece.color, 0.86 * pulse);
+        g.fillStyle(0x0a0815, 0.85);
+        g.fillRect(x, y, miniCell, miniCell);
+        g.fillStyle(color, 0.5 * pulse);
+        g.fillRect(x + 1, y + 1, miniCell - 2, miniCell - 2);
+        g.fillStyle(color, 0.9 * pulse);
+        g.fillRect(x + 2, y + 2, miniCell - 4, miniCell - 4);
+        g.fillStyle(0xffffff, 0.6 * pulse);
+        g.fillRect(x + 2, y + 2, miniCell - 6, 1);
+        g.lineStyle(1, color, 0.9);
+        g.strokeRect(x, y, miniCell, miniCell);
       }
     }
 
     drawBlock(col, row, block, alpha, time) {
       const x = BOARD_X + col * CELL;
       const y = BOARD_Y + row * CELL;
-      const pulse = block.powerUp === 'bomb' ? 0.72 + Math.sin(time / 85) * 0.28 : 1;
+      const isBomb = block.powerUp === 'bomb';
+      const isFreeze = block.powerUp === 'freeze';
+      const pulse = isBomb ? 0.72 + Math.sin(time / 85) * 0.28 :
+                    isFreeze ? 0.85 + Math.sin(time / 140) * 0.15 :
+                    0.9 + Math.sin(time / 200 + col + row) * 0.1;
+      const color = block.powerUp ? block.color : this.currentTheme.accent;
+
+      this.graphics.fillStyle(color, alpha * 0.15 * pulse);
+      this.graphics.fillRect(x - 2, y - 2, CELL + 4, CELL + 4);
+
+      this.graphics.fillStyle(0x0a0815, alpha * 0.85);
+      this.graphics.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
       
-      this.graphics.fillStyle(block.powerUp ? block.color : this.currentTheme.accent, alpha * 0.12 * pulse);
-      this.graphics.fillRect(x - 1, y - 1, CELL + 2, CELL + 2);
-      
-      this.graphics.fillStyle(0x090718, alpha * 0.78);
-      this.graphics.fillRect(x + 4, y + 5, CELL - 5, CELL - 5);
-      this.graphics.fillStyle(block.color, alpha * pulse);
-      this.graphics.fillRect(x + 2, y + 2, CELL - 5, CELL - 5);
-      this.graphics.fillStyle(0xffffff, alpha * 0.24);
-      this.graphics.fillRect(x + 4, y + 4, CELL - 9, 3);
-      this.graphics.lineStyle(block.powerUp ? 2 : 1, block.color, alpha * 0.85);
-      this.graphics.strokeRect(x + 1, y + 1, CELL - 3, CELL - 3);
+      this.graphics.fillStyle(color, alpha * 0.4 * pulse);
+      this.graphics.fillRect(x + 4, y + 4, CELL - 8, CELL - 8);
+      this.graphics.fillStyle(color, alpha * 0.85 * pulse);
+      this.graphics.fillRect(x + 7, y + 7, CELL - 14, CELL - 14);
+
+      this.graphics.fillStyle(0xffffff, alpha * 0.45 * pulse);
+      this.graphics.fillRect(x + 8, y + 8, CELL - 20, 3);
+      this.graphics.lineStyle(block.powerUp ? 3 : 2, color, alpha * 0.9);
+      this.graphics.strokeRect(x, y, CELL, CELL);
     }
 
     drawActive(piece) {
       const size = dimensions(piece.cells);
       const left = piece.x - (size.width * CELL) / 2;
       const top = piece.y - (size.height * CELL) / 2;
-      const pulse = piece.powerUp === 'bomb' ? 0.65 + Math.sin(this.time.now / 70) * 0.35 : 1;
+      const isBomb = piece.powerUp === 'bomb';
+      const isFreeze = piece.powerUp === 'freeze';
+      const basePulse = isBomb ? 0.65 + Math.sin(this.time.now / 70) * 0.35 :
+                        isFreeze ? 0.8 + Math.sin(this.time.now / 110) * 0.2 :
+                        0.85 + Math.sin(this.time.now / 150) * 0.15;
+      const pulse = piece.falling ? basePulse * 1.1 : basePulse;
+      const color = piece.powerUp ? piece.color : this.currentTheme.accent;
+
       for (const [cellX, cellY] of piece.cells) {
         const x = left + cellX * CELL;
         const y = top + cellY * CELL;
-        
-        this.graphics.fillStyle(piece.powerUp ? piece.color : this.currentTheme.accent, 0.25 * pulse);
+        this.graphics.fillStyle(color, 0.2 * pulse);
         this.graphics.fillRect(x - 2, y - 2, CELL + 4, CELL + 4);
 
-        this.graphics.fillStyle(0x090718, 0.7);
-        this.graphics.fillRect(x + 5, y + 6, CELL - 5, CELL - 5);
-        this.graphics.fillStyle(piece.color, (piece.falling ? 0.72 : 1) * pulse);
-        this.graphics.fillRect(x + 2, y + 2, CELL - 5, CELL - 5);
-        this.graphics.fillStyle(0xffffff, 0.3);
-        this.graphics.fillRect(x + 4, y + 4, CELL - 9, 3);
-        this.graphics.lineStyle(2, 0xffffff, piece.falling ? 0.35 : 0.82);
-        this.graphics.strokeRect(x, y, CELL - 2, CELL - 2);
+        this.graphics.fillStyle(0x0a0815, 0.85);
+        this.graphics.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+
+        this.graphics.fillStyle(color, 0.45 * pulse);
+        this.graphics.fillRect(x + 4, y + 4, CELL - 8, CELL - 8);
+
+        this.graphics.fillStyle(color, (piece.falling ? 0.95 : 0.85) * pulse);
+        this.graphics.fillRect(x + 7, y + 7, CELL - 14, CELL - 14);
+
+        this.graphics.fillStyle(0xffffff, 0.5 * pulse);
+        this.graphics.fillRect(x + 8, y + 8, CELL - 20, 3);
+        this.graphics.lineStyle(piece.powerUp ? 3 : 2, piece.falling ? 0xffffff : color, piece.falling ? 0.9 : 0.95);
+        this.graphics.strokeRect(x, y, CELL, CELL);
       }
     }
 
@@ -1062,7 +1080,7 @@
       return {
         type,
         powerUp,
-        color: powerUp ? POWER_UPS[powerUp].color : COLORS[type],
+        color: powerUp ? POWER_UPS[powerUp].color : null,
       };
     }
 

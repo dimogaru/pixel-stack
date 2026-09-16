@@ -24,15 +24,14 @@ const MAX_COMBO = 3;
 const LAVA_BASE_SPEED = 0.0055;
 const LAVA_SPEED_GROWTH = 1.06;
 const LAVA_SPEED_CAP = 0.013;
-const TYPES = ["I", "O", "T", "L", "J", "S", "Z"] as const;
+const TYPES = ["LINE3", "CROSS5", "U5", "STEP5", "L5", "POINTER3"] as const;
 const SHAPES: Record<(typeof TYPES)[number], Array<[number, number]>> = {
-  I: [[0, 0], [1, 0], [2, 0], [3, 0]],
-  O: [[0, 0], [1, 0], [0, 1], [1, 1]],
-  T: [[0, 0], [1, 0], [2, 0], [1, 1]],
-  L: [[0, 0], [0, 1], [0, 2], [1, 2]],
-  J: [[1, 0], [1, 1], [1, 2], [0, 2]],
-  S: [[1, 0], [2, 0], [0, 1], [1, 1]],
-  Z: [[0, 0], [1, 0], [1, 1], [2, 1]],
+  LINE3: [[0, 0], [1, 0], [2, 0]],
+  CROSS5: [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+  U5: [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+  STEP5: [[0, 0], [1, 0], [1, 1], [2, 1], [3, 1]],
+  L5: [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
+  POINTER3: [[0, 0], [1, 0], [0, 1]],
 };
 
 export function levelForScore(score: number): number {
