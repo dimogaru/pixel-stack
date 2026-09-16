@@ -332,6 +332,10 @@
     onPointerDown(pointer) {
       if (this.gameState === 'paused' || this.gameState === 'gameover' || this.isCollapsing) return;
       if (!this.active || !this.pointerHitsActive(pointer)) return;
+      if (this.runSeed === null) {
+        this.callbacks.onMessage(t('verificationLoading'));
+        return;
+      }
       global.PixelStackAudio?.unlock();
       this.startRun();
 
@@ -583,7 +587,7 @@
         this.grid[row][col] = null;
       }
       this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
-      this.cameras.main.shake(180, 0.004);
+      this.cameras.main.shake(150, 0.01);
       this.flashBoard(POWER_UPS.bomb.color, 480);
       this.showFloatingText(t('boom'), POWER_UPS.bomb.color);
       this.callbacks.onMessage(t('bombMessage'));
@@ -684,7 +688,7 @@
         global.PixelStackAudio?.playClearLine?.(clearCombo);
         global.PixelStackAudio?.playCombo?.(clearCombo);
         this.showFloatingText(t('combo', { value: clearCombo }), this.currentTheme.accent, HEIGHT * 0.38);
-        this.cameras.main.shake(140 + clearedRows * 25, 0.0025 + clearedRows * 0.0004);
+        this.cameras.main.shake(150, 0.01);
         this.flashBoard(this.currentTheme.accent, 210 + clearedRows * 55);
 
         completeRow = this.grid.findIndex((row) => row.every(Boolean));

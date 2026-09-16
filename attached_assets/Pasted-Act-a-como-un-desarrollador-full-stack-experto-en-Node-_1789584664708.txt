@@ -1,0 +1,35 @@
+Actúa como un desarrollador full-stack experto en Node.js, SQLite y React/TypeScript.
+
+Tenemos dos problemas en "Pixel Stack":
+1. Al introducir el nombre e intentar guardar la puntuación en el Top 20, la petición falla o no persiste los datos en SQLite, dejando la tabla en blanco ("NO HIGHSCORES YET").
+2. Queremos incluir las últimas mejoras de pulido visual (Screen Shake, Next Piece Preview y Ondulación de Lava).
+
+Por favor, aplica las siguientes correcciones de backend y mejoras de frontend:
+
+1. ARREGLAR PERSISTENCIA Y GUARDADO EN SQLITE (server.js):
+   - Asegúrate de que la tabla 'high_scores' en SQLite exista y tenga la estructura: (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, score INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP).
+   - En el endpoint POST /api/scores:
+     a) Recibe { name, score }, valida que name no esté vacío (máx. 10 caracteres) y score > 0.
+     b) Inserta el nuevo registro en la base de datos.
+     c) MANTENER SOLO LOS 20 MEJORES: Ejecuta inmediatamente una sentencia SQL para borrar las puntuaciones sobrantes por debajo del puesto 20:
+        'DELETE FROM high_scores WHERE id NOT IN (SELECT id FROM high_scores ORDER BY score DESC LIMIT 20);'
+     d) Responde con status 200 y JSON { success: true }.
+   - En el endpoint GET /api/scores:
+     a) Consulta y devuelve SIEMPRE los 20 mejores registros ordenados:
+        'SELECT name, score FROM high_scores ORDER BY score DESC LIMIT 20;'
+
+2. FLUJO DE GUARDADO Y ACTUALIZACIÓN DE UI (App.tsx):
+   - Al pulsar "Guardar/Enviar" en el modal de nombre:
+     a) Ejecuta el POST /api/scores con 'await'.
+     b) Inmediatamente después, ejecuta 'await fetchScores()' para recargar la lista del servidor.
+     c) Muestra la pantalla de la tabla con los datos devueltos para confirmar que el registro se guardó.
+
+3. MEJORAS VISUALES DE PULIDO (Phaser / GameCanvas):
+   - EFECTO DE TEMBLOR (SCREEN SHAKE): Añade 'this.cameras.main.shake(150, 0.01)' cuando explote una Pieza Bomba o se complete una fila.
+   - VISTA PREVIA DE PIEZA SIGUIENTE (NEXT PIECE): Añade un recuadro neón en la esquina superior derecha con la vista previa en miniatura de la siguiente pieza.
+   - ONDULACIÓN DE LA LAVA: Añade un efecto sinusoidal/onda en la superficie superior de la lava para darle aspecto de fluido orgánico en movimiento.
+
+4. MANTENER COMPATIBILIDAD COMPLETA:
+   - Conserva la física de anclaje, la compactación ascendente, las piezas originales (Triminós/Pentaminós), la localización i18n y los sonidos nativos.
+
+Aplica estas correcciones en server.js y App.tsx asegurando que no haya errores de compilación.
