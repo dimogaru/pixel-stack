@@ -33,6 +33,16 @@ type RunAction = {
   atMs: number;
 };
 
+type RankedScore = {
+  score: number;
+};
+
+function isTopScore(currentScore: number, highScores: RankedScore[] | null | undefined): boolean {
+  if (currentScore <= 0) return false;
+  if (!highScores || highScores.length < 20) return true;
+  return currentScore > highScores[highScores.length - 1].score;
+}
+
 declare global {
   interface Window {
     PixelStackAudio: {
@@ -99,7 +109,7 @@ function GameCanvas({ callbacks, paused, runSeed }: { callbacks: GameCallbacks; 
 function Home() {
   const t = window.PixelStackI18n.t;
   const [score, setScore] = useState(0);
-  const [best, setBest] = useState(() => Number(window.localStorage.getItem('pixel-stack-best') || 0));
+  const [best, setBest] = useState(0);
   const [level, setLevel] = useState(1);
   const [combo, setCombo] = useState(1);
   const [gameState, setGameState] = useState<GameState>('ready');
@@ -119,6 +129,11 @@ function Home() {
   const endedAtMsRef = useRef<number | null>(null);
   const serverRunRef = useRef<ServerRun | null>(null);
   const [runSeed, setRunSeed] = useState<number | null>(null);
+
+  useEffect(() => {
+    window.localStorage.removeItem('pixelStack_best');
+    window.localStorage.removeItem('pixel-stack-best');
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -144,7 +159,6 @@ function Home() {
   useEffect(() => {
     if (score > best) {
       setBest(score);
-      window.localStorage.setItem('pixel-stack-best', String(score));
     }
   }, [score, best]);
 
@@ -171,8 +185,7 @@ function Home() {
     setNickname('');
     const currentScores = await loadScores();
     if (!currentScores) return;
-    const qualifies = currentScores.length < 20 || finalScore > currentScores[currentScores.length - 1].score;
-    if (qualifies) setQualifyingScore(finalScore);
+    if (isTopScore(finalScore, currentScores)) setQualifyingScore(finalScore);
   }, [loadScores]);
 
   const callbacks = useMemo<GameCallbacks>(() => ({
@@ -198,7 +211,7 @@ function Home() {
     },
     onGameOver: (finalScore, endedAtMs) => {
       endedAtMsRef.current = endedAtMs;
-      if (runProofRef.current) void checkQualification(finalScore);
+      void checkQualification(finalScore);
     },
   }), [checkQualification]);
 
@@ -238,7 +251,7 @@ function Home() {
       setSubmitStatus('submitted');
       runProofRef.current = null;
       setSubmitMessage(t('scoreSaved'));
-      await loadScores();
+      await loadScores(true);
     } catch {
       setSubmitStatus('error');
       setSubmitMessage(t('scoreSaveFailed'));
