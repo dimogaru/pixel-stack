@@ -22,10 +22,12 @@
   const CEILING_Y = BOARD_Y;
   const TAP_MS = 210;
   const TAP_DISTANCE = 12;
-  const SCORE_PER_LEVEL = 1000;
+  const SCORE_PER_LEVEL = 500;
   const SPECIAL_CHANCE = 0.15;
-  const COMBO_WINDOW_MS = 2000;
-  const MAX_COMBO = 4;
+  const NORMAL_ANCHOR_POINTS = 10;
+  const SPECIAL_ANCHOR_POINTS = 25;
+  const LINE_CLEAR_POINTS = [100, 250, 500];
+  const MAX_COMBO = 3;
   const SPAWN_GRACE_MS = 1500;
   const LAVA_BASE_SPEED = 0.0055;
   const LAVA_SPEED_GROWTH = 1.06;
@@ -154,7 +156,6 @@
       this.level = 1;
       this.elapsedRun = 0;
       this.combo = 1;
-      this.lastAnchorAt = 0;
       this.gameState = 'ready';
       this.runStarted = false;
       this.runSeed = null;
@@ -226,7 +227,6 @@
       this.nextPiece = null;
       this.gameOverGraceUntil = SPAWN_GRACE_MS;
       this.combo = 1;
-      this.lastAnchorAt = 0;
       this.themeIndex = 0;
       this.currentTheme = { ...THEMES[0] };
       this.startTheme = { ...THEMES[0] };
@@ -480,13 +480,13 @@
     anchorActive() {
       const piece = this.active;
       const placedCells = this.activeGridCells(piece);
-      this.updateComboForAnchor();
+      this.setCombo(1);
       for (const { col, row } of placedCells) {
         this.grid[row][col] = { color: piece.color, type: piece.type, powerUp: piece.powerUp };
         this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color, 3);
       }
       this.active = null;
-      this.score += 40 * this.level * this.combo;
+      this.score += piece.powerUp ? SPECIAL_ANCHOR_POINTS : NORMAL_ANCHOR_POINTS;
       this.callbacks.onRunAction?.({
         kind: 'anchor',
         pieceIndex: piece.pieceIndex,
@@ -495,24 +495,16 @@
         row: Math.min(...placedCells.map(({ row }) => row)),
         atMs: Math.round(this.elapsedRun),
       });
-      this.callbacks.onScore(this.score);
       this.callbacks.onMessage(t('anchorLocked'));
       global.PixelStackAudio?.playSnap();
       this.flashBoard(this.currentTheme.accent, 210);
       this.activatePowerUp(piece.powerUp, placedCells);
-      this.clearCompletedRows();
-      this.spawnPiece();
-    }
-
-    updateComboForAnchor() {
-      const now = this.elapsedRun;
-      const isQuickPlacement = this.lastAnchorAt > 0 && now - this.lastAnchorAt < COMBO_WINDOW_MS;
-      this.setCombo(isQuickPlacement ? Math.min(MAX_COMBO, this.combo + 1) : 1);
-      this.lastAnchorAt = now;
-      if (this.combo > 1) {
-        this.showFloatingText(t('combo', { value: this.combo }), this.currentTheme.accent, HEIGHT * 0.42);
-        global.PixelStackAudio?.playCombo?.(this.combo);
+      const clearedRows = this.clearCompletedRows();
+      if (!clearedRows) {
+        this.syncLevelToScore();
+        this.callbacks.onScore(this.score);
       }
+      this.spawnPiece();
     }
 
     setCombo(value) {
@@ -632,9 +624,9 @@
       let clearedRows = 0;
       let completeRow = this.grid.findIndex((row) => row.every(Boolean));
       while (completeRow !== -1) {
-        this.setCombo(Math.min(MAX_COMBO, this.combo + 1));
-        const clearMultiplier = this.combo;
         clearedRows += 1;
+        const clearCombo = Math.min(MAX_COMBO, clearedRows);
+        this.setCombo(clearCombo);
 
         for (let col = 0; col < COLS; col += 1) {
           const block = this.grid[completeRow][col];
@@ -653,22 +645,24 @@
         this.grid[ROWS - 1] = Array(COLS).fill(null);
 
         this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
-        this.score += 500 * this.level * clearMultiplier;
-        global.PixelStackAudio?.playClearLine?.(clearMultiplier);
-        global.PixelStackAudio?.playCombo?.(clearMultiplier);
-        this.showFloatingText(t('combo', { value: clearMultiplier }), this.currentTheme.accent, HEIGHT * 0.38);
+        this.score += LINE_CLEAR_POINTS[clearCombo - 1];
+        global.PixelStackAudio?.playClearLine?.(clearCombo);
+        global.PixelStackAudio?.playCombo?.(clearCombo);
+        this.showFloatingText(t('combo', { value: clearCombo }), this.currentTheme.accent, HEIGHT * 0.38);
         this.cameras.main.shake(140 + clearedRows * 25, 0.0025 + clearedRows * 0.0004);
         this.flashBoard(this.currentTheme.accent, 210 + clearedRows * 55);
 
         completeRow = this.grid.findIndex((row) => row.every(Boolean));
       }
 
-      if (!clearedRows) return;
+      if (!clearedRows) return 0;
+      this.syncLevelToScore();
       this.callbacks.onScore(this.score);
       this.callbacks.onMessage(t('linesVented', {
         count: clearedRows,
         lines: t(clearedRows > 1 ? 'lines' : 'line'),
       }));
+      return clearedRows;
     }
 
     update(time, delta) {
@@ -686,9 +680,6 @@
       }
 
       if (this.gameState === 'playing') {
-        if (this.combo > 1 && this.lastAnchorAt > 0 && this.elapsedRun - this.lastAnchorAt >= COMBO_WINDOW_MS) {
-          this.setCombo(1);
-        }
         this.syncLevelToScore();
 
         this.updateFreezeCountdown(this.elapsedRun);
@@ -775,11 +766,8 @@
       if (bottom >= this.lavaTop) {
         this.burstAt(this.active.x, this.lavaTop, this.active.color, 15);
         this.active = null;
-        this.score = Math.max(0, this.score - 25);
         this.callbacks.onRunInvalid?.();
-        this.callbacks.onScore(this.score);
         this.setCombo(1);
-        this.lastAnchorAt = 0;
         this.callbacks.onMessage(t('pieceLost'));
         this.contactPulseUntil = this.elapsedRun + 500;
         this.flashBoard(this.currentTheme.lava, 400);

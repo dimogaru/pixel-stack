@@ -9,7 +9,7 @@ export type RunAction = {
 
 const COLS = 10;
 const ROWS = 18;
-const SCORE_PER_LEVEL = 1000;
+const SCORE_PER_LEVEL = 500;
 const CELL = 36;
 const BOARD_Y = 76;
 const START_LAVA_TOP = 638;
@@ -17,8 +17,10 @@ const GAME_OVER_LAVA_TOP = 78;
 const SIMULATION_STEP_MS = 10;
 const TERMINAL_TOLERANCE_MS = 1_000;
 const SPECIAL_CHANCE = 0.15;
-const COMBO_WINDOW_MS = 2_000;
-const MAX_COMBO = 4;
+const NORMAL_ANCHOR_POINTS = 10;
+const SPECIAL_ANCHOR_POINTS = 25;
+const LINE_CLEAR_POINTS = [100, 250, 500] as const;
+const MAX_COMBO = 3;
 const LAVA_BASE_SPEED = 0.0055;
 const LAVA_SPEED_GROWTH = 1.06;
 const LAVA_SPEED_CAP = 0.013;
@@ -80,15 +82,13 @@ function pieceFor(
 
 export function applyScoring(
   score: number,
-  level: number,
+  isSpecial: boolean,
   clearedRows: number,
-  anchorCombo = 1,
 ): { score: number; level: number } {
-  let nextScore = score + 40 * level * anchorCombo;
-  let clearCombo = anchorCombo;
+  let nextScore = score + (isSpecial ? SPECIAL_ANCHOR_POINTS : NORMAL_ANCHOR_POINTS);
   for (let cleared = 0; cleared < clearedRows; cleared += 1) {
-    clearCombo = Math.min(MAX_COMBO, clearCombo + 1);
-    nextScore += 500 * level * clearCombo;
+    const clearCombo = Math.min(MAX_COMBO, cleared + 1);
+    nextScore += LINE_CLEAR_POINTS[clearCombo - 1];
   }
   return {
     score: nextScore,
@@ -98,18 +98,18 @@ export function applyScoring(
 
 export function resolveCompactClears(
   grid: boolean[][],
-  startingCombo: number,
-  level: number,
+  _startingCombo = 1,
+  _level = 1,
 ): { clearedRows: number; combo: number; scoreBonus: number } {
   let clearedRows = 0;
-  let combo = startingCombo;
+  let combo = 1;
   let scoreBonus = 0;
   let completeRow = grid.findIndex((row) => row.every(Boolean));
 
   while (completeRow !== -1) {
-    combo = Math.min(MAX_COMBO, combo + 1);
     clearedRows += 1;
-    scoreBonus += 500 * level * combo;
+    combo = Math.min(MAX_COMBO, clearedRows);
+    scoreBonus += LINE_CLEAR_POINTS[combo - 1];
     for (let row = completeRow; row < ROWS - 1; row += 1) {
       grid[row] = grid[row + 1];
     }
@@ -148,7 +148,6 @@ export function replayRun(
   let lavaTop = START_LAVA_TOP;
   let lavaPausedUntil = 0;
   let combo = 1;
-  let lastAnchorAt = 0;
 
   function advanceLava(targetMs: number): number | null {
     while (elapsedMs < targetMs) {
@@ -190,10 +189,8 @@ export function replayRun(
     ));
     if (!supported) return null;
 
-    const isQuickPlacement = lastAnchorAt > 0 && action.atMs - lastAnchorAt < COMBO_WINDOW_MS;
-    combo = isQuickPlacement ? Math.min(MAX_COMBO, combo + 1) : 1;
-    lastAnchorAt = action.atMs;
-    score += 40 * level * combo;
+    combo = 1;
+    score += powerUp ? SPECIAL_ANCHOR_POINTS : NORMAL_ANCHOR_POINTS;
 
     for (const { col, row } of positioned) grid[row][col] = true;
     if (powerUp === "freeze") {
