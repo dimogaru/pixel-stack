@@ -51,7 +51,7 @@ router.post("/scores", async (req, res): Promise<void> => {
   const nickname = parsed.data.nickname.trim().toUpperCase();
   const inserted = insertHighScore(nickname, parsed.data.score);
   if (!inserted) {
-    res.status(409).json({ error: "Score did not qualify for the Top 10" });
+    res.status(409).json({ error: "Score did not qualify for the Top 20" });
     return;
   }
 

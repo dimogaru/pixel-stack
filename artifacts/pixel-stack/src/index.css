@@ -175,7 +175,7 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .leaderboard-subtitle { margin: 0 0 17px; color: #756f9b; font: 8px var(--app-font-mono); letter-spacing: .12em; }
 .leaderboard-close { position: absolute; top: 13px; right: 13px; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #443b71; background: transparent; color: #aaa5c3; cursor: pointer; }
 .leaderboard-close:hover { color: #ff5f52; border-color: #ff5f52; }
-.leaderboard-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid #403768; }
+.leaderboard-list { max-height: min(55dvh, 520px); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #55f2c6 #211a40; scrollbar-width: thin; list-style: none; margin: 0; padding: 0; border-top: 1px solid #403768; }
 .leaderboard-list li { min-height: 39px; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; border-bottom: 1px solid #2f2852; color: #9f9abf; font: 10px var(--app-font-mono); letter-spacing: .08em; }
 .leaderboard-list .rank { color: #5e587e; }
 .leaderboard-list strong { color: #ddd8eb; font-weight: 500; }

@@ -171,7 +171,7 @@ function Home() {
     setNickname('');
     const currentScores = await loadScores();
     if (!currentScores) return;
-    const qualifies = currentScores.length < 10 || finalScore > currentScores[currentScores.length - 1].score;
+    const qualifies = currentScores.length < 20 || finalScore > currentScores[currentScores.length - 1].score;
     if (qualifies) setQualifyingScore(finalScore);
   }, [loadScores]);
 

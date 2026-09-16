@@ -43,7 +43,7 @@ const listStatement = database.prepare(`
   SELECT id, nickname, score, created_at
   FROM high_scores
   ORDER BY score DESC, created_at ASC, id ASC
-  LIMIT 10
+  LIMIT 20
 `);
 
 const countStatement = database.prepare("SELECT COUNT(*) AS count FROM high_scores");
@@ -51,7 +51,7 @@ const minimumStatement = database.prepare(`
   SELECT score
   FROM high_scores
   ORDER BY score DESC, created_at ASC, id ASC
-  LIMIT 1 OFFSET 9
+  LIMIT 1 OFFSET 19
 `);
 const insertStatement = database.prepare(`
   INSERT INTO high_scores (nickname, score)
@@ -64,7 +64,7 @@ const pruneStatement = database.prepare(`
     SELECT id
     FROM high_scores
     ORDER BY score DESC, created_at ASC, id ASC
-    LIMIT 10
+    LIMIT 20
   )
 `);
 const insertRunStatement = database.prepare(`
@@ -93,7 +93,7 @@ export function insertHighScore(nickname: string, score: number): HighScore | nu
   database.exec("BEGIN IMMEDIATE");
   try {
     const cutoff = getLeaderboardCutoff();
-    if (cutoff.count >= 10 && cutoff.minimum !== null && score <= cutoff.minimum) {
+    if (cutoff.count >= 20 && cutoff.minimum !== null && score <= cutoff.minimum) {
       database.exec("ROLLBACK");
       return null;
     }
