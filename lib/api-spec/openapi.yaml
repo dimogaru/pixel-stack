@@ -13,20 +13,6 @@ tags:
   - name: scores
     description: Pixel Stack global leaderboard
 paths:
-  /runs:
-    post:
-      operationId: startRun
-      tags: [scores]
-      summary: Issue a server-verified game run
-      responses:
-        "201":
-          description: Run issued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GameRun"
-        "429":
-          description: Too many run requests
   /healthz:
     get:
       operationId: healthCheck
@@ -65,18 +51,14 @@ paths:
             schema:
               $ref: "#/components/schemas/ScoreInput"
       responses:
-        "201":
+        "200":
           description: Score accepted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HighScore"
+                $ref: "#/components/schemas/ScoreSubmitResult"
         "400":
           description: Invalid score
-        "401":
-          description: Invalid or expired run proof
-        "409":
-          description: Score did not qualify
         "429":
           description: Too many score submissions
 components:
@@ -90,11 +72,11 @@ components:
         - status
     HighScore:
       type: object
-      required: [id, nickname, score, created_at]
+      required: [id, name, score, created_at]
       properties:
         id:
           type: integer
-        nickname:
+        name:
           type: string
           maxLength: 10
         score:
@@ -102,68 +84,25 @@ components:
           minimum: 0
         created_at:
           type: string
-    GameRun:
+    ScoreSubmitResult:
       type: object
       additionalProperties: false
-      required: [proof, seed]
+      required: [success]
       properties:
-        proof:
-          type: string
-          minLength: 1
-        seed:
-          type: integer
-          minimum: 1
-          maximum: 4294967295
-    RunAction:
-      type: object
-      additionalProperties: false
-      required: [kind, pieceIndex, atMs]
-      properties:
-        kind:
-          type: string
-          enum: [anchor]
-        pieceIndex:
-          type: integer
-          minimum: 0
-        rotation:
-          type: integer
-          minimum: 0
-          maximum: 3
-        col:
-          type: integer
-          minimum: 0
-          maximum: 9
-        row:
-          type: integer
-          minimum: 0
-          maximum: 17
-        atMs:
-          type: integer
-          minimum: 0
-          maximum: 7200000
+        success:
+          type: boolean
+          const: true
     ScoreInput:
       type: object
       additionalProperties: false
-      required: [nickname, score, proof, actions, endedAtMs]
+      required: [name, score]
       properties:
-        nickname:
+        name:
           type: string
           minLength: 1
           maxLength: 10
           pattern: "^[A-Za-z0-9_-]+$"
         score:
           type: integer
-          minimum: 0
-        proof:
-          type: string
-          minLength: 1
-        actions:
-          type: array
-          maxItems: 1000
-          items:
-            $ref: "#/components/schemas/RunAction"
-        endedAtMs:
-          type: integer
-          minimum: 0
-          maximum: 7200000
+          minimum: 1
 

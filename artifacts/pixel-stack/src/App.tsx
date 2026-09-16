@@ -43,6 +43,10 @@ function isTopScore(currentScore: number, highScores: RankedScore[] | null | und
   return currentScore > highScores[highScores.length - 1].score;
 }
 
+function createLocalRunSeed(): number {
+  return window.crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+}
+
 declare global {
   interface Window {
     PixelStackAudio: {
@@ -124,33 +128,12 @@ function Home() {
   const [nickname, setNickname] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [submitMessage, setSubmitMessage] = useState('');
-  const runProofRef = useRef<string | null>(null);
-  const runActionsRef = useRef<RunAction[]>([]);
-  const endedAtMsRef = useRef<number | null>(null);
-  const serverRunRef = useRef<ServerRun | null>(null);
-  const [runSeed, setRunSeed] = useState<number | null>(null);
+  const [runSeed, setRunSeed] = useState<number>(createLocalRunSeed);
 
   useEffect(() => {
     window.localStorage.removeItem('pixelStack_best');
     window.localStorage.removeItem('pixel-stack-best');
   }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    serverRunRef.current = null;
-    setRunSeed(null);
-    void fetch('/api/runs', { method: 'POST', signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Could not start verified run');
-        const data = await response.json() as ServerRun;
-        serverRunRef.current = data;
-        setRunSeed(data.seed);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) serverRunRef.current = null;
-      });
-    return () => controller.abort();
-  }, [runKey]);
 
   useEffect(() => {
     window.PixelStackAudio?.setMuted(!soundOn);
@@ -198,19 +181,10 @@ function Home() {
       if (state === 'playing') setPaused(false);
     },
     onMessage: setMessage,
-    onRunStart: (verified) => {
-      runActionsRef.current = [];
-      endedAtMsRef.current = null;
-      runProofRef.current = verified ? serverRunRef.current?.proof ?? null : null;
-    },
-    onRunAction: (action) => {
-      runActionsRef.current.push(action);
-    },
-    onRunInvalid: () => {
-      runProofRef.current = null;
-    },
-    onGameOver: (finalScore, endedAtMs) => {
-      endedAtMsRef.current = endedAtMs;
+    onRunStart: () => {},
+    onRunAction: () => {},
+    onRunInvalid: () => {},
+    onGameOver: (finalScore) => {
       void checkQualification(finalScore);
     },
   }), [checkQualification]);
@@ -229,34 +203,19 @@ function Home() {
     setSubmitStatus('submitting');
     setSubmitMessage('');
     try {
-      if (!runProofRef.current || endedAtMsRef.current === null) {
-        throw new Error(t('runNotVerified'));
-      }
       const response = await fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nickname: cleanNickname,
+          name: cleanNickname,
           score: qualifyingScore,
-          proof: runProofRef.current,
-          actions: runActionsRef.current,
-          endedAtMs: endedAtMsRef.current,
         }),
       });
-      if (response.status === 409) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        console.error('Leaderboard score rejected:', payload?.error ?? response.statusText);
-        setQualifyingScore(null);
-        setSubmitStatus('error');
-        setSubmitMessage(t('topChanged'));
-        return;
-      }
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { error?: string } | null;
         throw new Error(payload?.error || t('scoreSaveFailed'));
       }
       setSubmitStatus('submitted');
-      runProofRef.current = null;
       setSubmitMessage(t('scoreSaved'));
       await loadScores(true);
     } catch (error) {
@@ -277,9 +236,7 @@ function Home() {
     setSubmitStatus('idle');
     setSubmitMessage('');
     setNickname('');
-    runProofRef.current = null;
-    runActionsRef.current = [];
-    endedAtMsRef.current = null;
+    setRunSeed(createLocalRunSeed());
     setRunKey((value) => value + 1);
   };
 
@@ -426,9 +383,9 @@ function Home() {
             {leaderboardStatus === 'idle' && scores.length > 0 && (
               <ol className="leaderboard-list">
                 {scores.map((entry, index) => (
-                  <li key={`${entry.id ?? 'score'}-${entry.nickname}-${entry.score}-${index}`} className={index < 3 ? `rank-${index + 1}` : ''}>
+                  <li key={`${entry.id ?? 'score'}-${entry.name}-${entry.score}-${index}`} className={index < 3 ? `rank-${index + 1}` : ''}>
                     <span className="rank">{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{entry.nickname}</strong>
+                    <strong>{entry.name}</strong>
                     <span className="leader-score">{String(entry.score).padStart(4, '0')}</span>
                   </li>
                 ))}
@@ -473,5 +430,3 @@ function App() {
 }
 
 export default App;
-
-type ServerRun = { proof: string; seed: number };

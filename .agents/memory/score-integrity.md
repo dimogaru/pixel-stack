@@ -1,10 +1,10 @@
 ---
-name: Integridad de puntuaciones
-description: Regla de seguridad para rankings de juegos cuyo cliente se ejecuta en un navegador no confiable.
+name: Política de puntuaciones
+description: Decisión explícita sobre la validación del ranking global de Pixel Stack.
 ---
 
-Una prueba firmada solo demuestra que el servidor emitió una partida; no demuestra que los eventos o la puntuación enviados por el navegador sean reales. El servidor debe reconstruir la partida desde una semilla propia y acciones mínimas, y derivar por sí mismo tablero, niveles, líneas, peligros temporales, final de partida y puntuación.
+El ranking acepta directamente `{ name, score }` cuando el nombre es válido y la puntuación es un entero positivo. No exigir pruebas firmadas, tokens, acciones, duración ni reconstrucción de la partida.
 
-**Why:** Un resumen de eventos firmado indirectamente seguía permitiendo inventar limpiezas de filas y niveles altos mientras se respetaban límites superficiales de tiempo.
+**Why:** El usuario pidió eliminar explícitamente el bloqueo de verificación y priorizar un guardado sencillo y fiable, aceptando que clientes externos puedan enviar puntuaciones inventadas.
 
-**How to apply:** Ante cualquier cambio de reglas, tiempo o puntuación, mantener cliente y replay en sincronía, exigir un estado terminal válido y conservar pruebas adversariales de secuencias imposibles, totales alterados y pruebas reutilizadas.
+**How to apply:** Mantener validación básica de nombre y `score > 0`, poda transaccional a 20 registros y respuesta HTTP 200. No reintroducir anti-cheat sin una nueva petición explícita.

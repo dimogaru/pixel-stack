@@ -6,9 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type RunActionKind = typeof RunActionKind[keyof typeof RunActionKind];
-
-
-export const RunActionKind = {
-  anchor: 'anchor',
+export const ScoreSubmitResultValue = {
+  success: true,
 } as const;
+export type ScoreSubmitResult = typeof ScoreSubmitResultValue;

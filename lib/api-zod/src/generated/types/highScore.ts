@@ -9,7 +9,7 @@
 export interface HighScore {
   id: number;
   /** @maxLength 10 */
-  nickname: string;
+  name: string;
   /** @minimum 0 */
   score: number;
   created_at: string;

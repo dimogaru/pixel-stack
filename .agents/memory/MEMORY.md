@@ -1,1 +1,1 @@
-- [Integridad de puntuaciones](score-integrity.md) — una prueba de inicio firmada no basta; el servidor debe derivar la puntuación de una repetición mecánicamente válida.
+- [Política de puntuaciones](score-integrity.md) — el Top 20 acepta directamente nombre y puntuación positiva; no reintroducir tokens ni replay sin una nueva petición explícita.
