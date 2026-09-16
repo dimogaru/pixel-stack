@@ -1,0 +1,32 @@
+Actúa como un desarrollador Senior Full-Stack en React, TypeScript, Express y SQLite.
+
+OBJETIVO:
+Reparar definitivamente el guardado de puntuaciones en la base de datos y añadir las mejoras visuales de pulido en "Pixel Stack" sin romper ninguna mecánica existente.
+
+1. REPARACIÓN DEL BACKEND Y PERSISTENCIA (server.js):
+   - Asegúrate de incluir 'app.use(express.json());' al inicio de las rutas para poder procesar JSONs en el body de las peticiones.
+   - Revisa la inicialización de la base de datos SQLite. La tabla 'high_scores' debe crearse automáticamente si no existe:
+     'CREATE TABLE IF NOT EXISTS high_scores (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, score INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);'
+   - CORRECCIÓN ENDPOINT POST /api/scores:
+     * Extrae { name, score } del req.body. Si 'name' o 'score' no existen, responde con res.status(400).json({ error: 'Datos incompletos' }).
+     * Limpia el nombre con 'trim()' y trúncalo a 10 caracteres como máximo.
+     * Inserta el registro en SQLite y ejecuta la sentencia para conservar ÚNICAMENTE los 20 mejores récords globales:
+       'DELETE FROM high_scores WHERE id NOT IN (SELECT id FROM high_scores ORDER BY score DESC LIMIT 20);'
+     * Añade bloques try/catch y 'console.log("POST /api/scores éxito:", { name, score })' para registrar la operación en la consola del servidor. Responde res.status(200).json({ success: true }).
+   - CORRECCIÓN ENDPOINT GET /api/scores:
+     * Devuelve SIEMPRE los 20 mejores registros ordenados: 'SELECT name, score FROM high_scores ORDER BY score DESC LIMIT 20;'.
+
+2. MANEJO DE ERRORES Y FLUJO EN EL FRONTEND (App.tsx):
+   - En la función de envío del formulario de nombre, realiza la llamada a 'POST /api/scores' utilizando try/catch:
+     * Si la respuesta devuelta por fetch no es 'ok' (ej. 400 o 500), muestra en pantalla el mensaje de error devuelto por la API y registra el error en 'console.error()'.
+     * Si la respuesta es exitosa (status 200), ejecuta inmediatamente 'await fetchScores()' para recargar la lista y transiciona la interfaz hacia la vista de la Tabla de Líderes (Top 20).
+   - Asegúrate de que si la lista devuelta por GET está vacía ([]), el componente renderice correctamente "SIN PUNTUACIONES AÚN" sin lanzar excepciones de JavaScript.
+
+3. MEJORAS VISUALES DE PULIDO (Phaser / GameCanvas):
+   - TEMBLOR DE PANTALLA (SCREEN SHAKE): Invoca 'this.cameras.main.shake(150, 0.01)' cuando explote una Pieza Bomba o se destruya una fila completa.
+   - VISTA PREVIA DE PIEZA SIGUIENTE (NEXT PIECE): Dibuja en el HUD superior derecho un contenedor neón que muestre la miniatura de la siguiente pieza.
+   - ONDULACIÓN DE LA LAVA: Añade una deformación sinusoidal (onda seno) a la línea superior del gráfico de la lava para darle movimiento orgánico.
+
+4. GARANTÍA DE COMPATIBILIDAD INTEGRAL:
+   - Mantén intactos: los Power-Ups (Congelante/Bomba), el reseteo limpio con "REPLAY", la aceleración del quemado por lava al tocar piezas, la localización de idioma (i18n) y el set de piezas originales (Triminós/Pentaminós).
+   - Asegúrate de que el proyecto compile sin advertencias ni errores de TypeScript.

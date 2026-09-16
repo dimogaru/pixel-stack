@@ -229,7 +229,9 @@ function Home() {
     setSubmitStatus('submitting');
     setSubmitMessage('');
     try {
-      if (!runProofRef.current || endedAtMsRef.current === null) throw new Error('Run was not verified');
+      if (!runProofRef.current || endedAtMsRef.current === null) {
+        throw new Error(t('runNotVerified'));
+      }
       const response = await fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -242,19 +244,25 @@ function Home() {
         }),
       });
       if (response.status === 409) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        console.error('Leaderboard score rejected:', payload?.error ?? response.statusText);
         setQualifyingScore(null);
         setSubmitStatus('error');
         setSubmitMessage(t('topChanged'));
         return;
       }
-      if (!response.ok) throw new Error('Could not submit score');
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || t('scoreSaveFailed'));
+      }
       setSubmitStatus('submitted');
       runProofRef.current = null;
       setSubmitMessage(t('scoreSaved'));
       await loadScores(true);
-    } catch {
+    } catch (error) {
+      console.error('Could not save leaderboard score:', error);
       setSubmitStatus('error');
-      setSubmitMessage(t('scoreSaveFailed'));
+      setSubmitMessage(error instanceof Error ? error.message : t('scoreSaveFailed'));
     }
   };
 
@@ -418,7 +426,7 @@ function Home() {
             {leaderboardStatus === 'idle' && scores.length > 0 && (
               <ol className="leaderboard-list">
                 {scores.map((entry, index) => (
-                  <li key={entry.id} className={index < 3 ? `rank-${index + 1}` : ''}>
+                  <li key={`${entry.id ?? 'score'}-${entry.nickname}-${entry.score}-${index}`} className={index < 3 ? `rank-${index + 1}` : ''}>
                     <span className="rank">{String(index + 1).padStart(2, '0')}</span>
                     <strong>{entry.nickname}</strong>
                     <span className="leader-score">{String(entry.score).padStart(4, '0')}</span>
