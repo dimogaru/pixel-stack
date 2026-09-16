@@ -12,6 +12,7 @@
       this.context = null;
       this.master = null;
       this.muted = false;
+      this.playMelt = this.playMelt.bind(this);
     }
 
     /**

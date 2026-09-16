@@ -32,6 +32,8 @@
   const LAVA_BASE_SPEED = 0.0055;
   const LAVA_SPEED_GROWTH = 1.06;
   const LAVA_SPEED_CAP = 0.013;
+  const COLLAPSE_SPEED_MULTIPLIER = 10;
+  const COLLAPSE_DURATION_MS = 1200;
   const levelForScore = (score) => Math.floor(Math.max(0, score) / SCORE_PER_LEVEL) + 1;
   const lavaSpeedForLevel = (level) => Math.min(
     LAVA_SPEED_CAP,
@@ -52,6 +54,15 @@
   };
 
   const TYPES = Object.keys(SHAPES);
+
+  const NEON_PALETTE = {
+    LINE3: 0x00ffff,     // Electric Cyan
+    CROSS5: 0xff00ff,    // Plasma Magenta
+    U5: 0x39ff14,        // Neon Green
+    STEP5: 0xcfff04,     // Volt Yellow
+    L5: 0x8a2be2,        // Deep Purple
+    POINTER3: 0xff3131   // Complementary Neon Red
+  };
 
   function lerpColor(c1, c2, t) {
     const r1 = (c1 >> 16) & 0xff;
@@ -152,11 +163,13 @@
       this.pieceCounter = 0;
       this.nextPiece = null;
       this.gameOverGraceUntil = 0;
+      this.isCollapsing = false;
+      this.collapseLavaSpeed = 0;
     }
 
     create() {
       this.graphics = this.add.graphics();
-      
+
       this.levelAnnouncer = this.add.text(WIDTH / 2, HEIGHT / 2, '', {
         fontFamily: '"DM Mono", monospace',
         fontSize: '28px',
@@ -215,6 +228,8 @@
       this.pieceCounter = 0;
       this.nextPiece = null;
       this.gameOverGraceUntil = SPAWN_GRACE_MS;
+      this.isCollapsing = false;
+      this.collapseLavaSpeed = 0;
       this.combo = 1;
       this.themeIndex = 0;
       this.currentTheme = { ...THEMES[0] };
@@ -249,7 +264,7 @@
       this.levelAnnouncer.setAlpha(1);
       this.levelAnnouncer.setScale(0.8);
       this.levelAnnouncer.setY(HEIGHT / 2 + 30);
-      
+
       this.tweens.killTweensOf(this.levelAnnouncer);
       this.tweens.add({
         targets: this.levelAnnouncer,
@@ -297,7 +312,7 @@
     }
 
     togglePause() {
-      if (this.gameState === 'ready' || this.gameState === 'gameover') return;
+      if (this.gameState === 'ready' || this.gameState === 'gameover' || this.isCollapsing) return;
       const next = this.gameState === 'paused' ? 'playing' : 'paused';
       this.setState(next);
       this.callbacks.onMessage(next === 'paused' ? t('pausedMessage') : t('resumedMessage'));
@@ -315,7 +330,7 @@
     }
 
     onPointerDown(pointer) {
-      if (this.gameState === 'paused' || this.gameState === 'gameover') return;
+      if (this.gameState === 'paused' || this.gameState === 'gameover' || this.isCollapsing) return;
       if (!this.active || !this.pointerHitsActive(pointer)) return;
       global.PixelStackAudio?.unlock();
       this.startRun();
@@ -331,17 +346,41 @@
     }
 
     onPointerMove(pointer) {
-      if (!this.dragging || !this.active || this.gameState !== 'playing') return;
+      if (!this.dragging || !this.active || this.gameState !== 'playing' || this.isCollapsing) return;
       const size = dimensions(this.active.cells);
       const halfWidth = (size.width * CELL) / 2;
       const halfHeight = (size.height * CELL) / 2;
+      const prevX = this.active.x;
+      const prevY = this.active.y;
       this.active.x = Phaser.Math.Clamp(pointer.x - this.dragOffset.x, BOARD_X + halfWidth, BOARD_X + COLS * CELL - halfWidth);
       this.active.y = Phaser.Math.Clamp(pointer.y - this.dragOffset.y, CEILING_Y + halfHeight, this.lavaTop - halfHeight - 4);
+
+      const dx = this.active.x - prevX;
+      const dy = this.active.y - prevY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq > 16) {
+        if (!this.active.trail) this.active.trail = [];
+        for (let spark = 0; spark < 3; spark += 1) {
+          this.active.trail.push({
+            x: prevX + Phaser.Math.Between(-12, 12),
+            y: prevY + Phaser.Math.Between(-12, 12),
+            vx: Phaser.Math.Between(-18, 18),
+            vy: Phaser.Math.Between(8, 32),
+            size: Phaser.Math.Between(2, 4),
+            time: this.time.now,
+          });
+        }
+        if (this.active.trail.length > 24) {
+          this.active.trail.splice(0, this.active.trail.length - 24);
+        }
+      }
+
       this.callbacks.onMessage(this.canAnchor(this.active) ? t('supportFound') : t('noSupportDrop'));
     }
 
     onPointerUp(pointer) {
-      if (!this.dragging || !this.active || this.gameState !== 'playing') return;
+      if (!this.dragging || !this.active || this.gameState !== 'playing' || this.isCollapsing) return;
       this.dragging = false;
 
       const start = this.pointerStart;
@@ -366,7 +405,7 @@
     }
 
     spawnPiece(pointerX = WIDTH / 2) {
-      if (this.active || this.gameState === 'gameover') return;
+      if (this.active || this.gameState === 'gameover' || this.isCollapsing) return;
       const descriptor = this.nextPiece || this.generatePieceDescriptor();
       this.nextPiece = this.generatePieceDescriptor();
       const { type, powerUp, color } = descriptor;
@@ -385,6 +424,8 @@
         velocityY: 0,
         pieceIndex: this.pieceCounter,
         rotation: 0,
+        scale: 1, // for placement pulse
+        trail: [], // particle trail queue
       };
       this.pieceCounter += 1;
       this.gameOverGraceUntil = this.elapsedRun + SPAWN_GRACE_MS;
@@ -470,9 +511,14 @@
       const piece = this.active;
       const placedCells = this.activeGridCells(piece);
       this.setCombo(1);
+
+      const cx = BOARD_X + (Math.min(...placedCells.map(c => c.col)) + Math.max(...placedCells.map(c => c.col))) / 2 * CELL + CELL / 2;
+      const cy = BOARD_Y + (Math.min(...placedCells.map(c => c.row)) + Math.max(...placedCells.map(c => c.row))) / 2 * CELL + CELL / 2;
+      this.effects.push({ kind: 'shockwave', x: cx, y: cy, color: piece.color || this.currentTheme.accent, born: this.time.now, until: this.time.now + 400 });
+
       for (const { col, row } of placedCells) {
-        this.grid[row][col] = { color: piece.color, type: piece.type, powerUp: piece.powerUp };
-        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color || this.currentTheme.accent, 3);
+        this.grid[row][col] = { color: piece.color, type: piece.type, powerUp: piece.powerUp, scale: 1.2, placedAt: this.time.now };
+        this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, piece.color || this.currentTheme.accent, 6);
       }
       this.active = null;
       this.score += piece.powerUp ? SPECIAL_ANCHOR_POINTS : NORMAL_ANCHOR_POINTS;
@@ -673,8 +719,10 @@
         this.syncLevelToScore();
 
         this.updateFreezeCountdown(this.elapsedRun);
-        if (this.elapsedRun > this.lavaPausedUntil) {
-          const lavaSpeed = lavaSpeedForLevel(this.level);
+        if (this.isCollapsing || this.elapsedRun > this.lavaPausedUntil) {
+          const lavaSpeed = this.isCollapsing
+            ? this.collapseLavaSpeed
+            : lavaSpeedForLevel(this.level);
           this.lavaTop -= elapsed * lavaSpeed;
         }
 
@@ -706,6 +754,9 @@
         }
       }
       this.effects = this.effects.filter((effect) => effect.until > time);
+      if (this.active && this.active.trail) {
+        this.active.trail = this.active.trail.filter(t => time - t.time <= 300);
+      }
       this.draw(time);
     }
 
@@ -721,7 +772,7 @@
           const y = BOARD_Y + row * CELL + CELL / 2;
           this.grid[row][col] = null;
           melted += 1;
-          this.burstAt(x, y, this.currentTheme.lavaLight, 9);
+          this.burstAt(x, y, this.currentTheme.lavaLight, this.isCollapsing ? 24 : 9);
           this.effects.push({
             kind: 'melt',
             x,
@@ -733,6 +784,7 @@
         }
       }
       if (melted > 0) {
+        if (!this.isCollapsing) this.startCollapse();
         this.contactPulseUntil = this.elapsedRun + 420;
         this.flashBoard(this.currentTheme.lavaLight, 180);
         global.PixelStackAudio?.playMelt?.(melted);
@@ -740,8 +792,29 @@
       return melted;
     }
 
+    startCollapse() {
+      if (this.isCollapsing || this.gameState !== 'playing') return;
+      this.isCollapsing = true;
+      this.collapseLavaSpeed = Math.max(
+        lavaSpeedForLevel(this.level) * COLLAPSE_SPEED_MULTIPLIER,
+        Math.max(0, this.lavaTop - (CEILING_Y + 2)) / COLLAPSE_DURATION_MS,
+      );
+      this.dragging = false;
+      this.pointerStart = null;
+      this.active = null;
+      this.nextPiece = null;
+      this.lavaPausedUntil = 0;
+      this.freezeCountdownUntil = 0;
+      this.freezeCountdownFading = false;
+      this.tweens.killTweensOf(this.freezeCountdownLabel);
+      this.freezeCountdownLabel.setVisible(false).setAlpha(0);
+      this.callbacks.onMessage(t('fastBurnCollapse'));
+      this.cameras.main.shake(COLLAPSE_DURATION_MS, 0.006);
+      this.flashBoard(this.currentTheme.lavaLight, COLLAPSE_DURATION_MS);
+    }
+
     updateFallingPiece(elapsed) {
-      if (!this.active || !this.active.falling) return;
+      if (this.isCollapsing || !this.active || !this.active.falling) return;
       this.active.velocityY = Math.min(760, this.active.velocityY + elapsed * 1.45);
       this.active.y += (this.active.velocityY * elapsed) / 1000;
 
@@ -766,7 +839,7 @@
     }
 
     hasLavaBreach() {
-      if (this.elapsedRun < this.gameOverGraceUntil) return false;
+      if (!this.isCollapsing && this.elapsedRun < this.gameOverGraceUntil) return false;
       return this.lavaTop <= CEILING_Y + 2;
     }
 
@@ -802,6 +875,9 @@
           born: this.time.now,
           until: this.time.now + Phaser.Math.Between(330, 620),
         });
+      }
+      if (this.effects.length > 320) {
+        this.effects.splice(0, this.effects.length - 320);
       }
     }
 
@@ -927,7 +1003,7 @@
       const pulse = isBomb ? 0.72 + Math.sin(time / 90) * 0.28 :
                     isFreeze ? 0.85 + Math.sin(time / 140) * 0.15 :
                     0.9 + Math.sin(time / 200) * 0.1;
-      const color = this.nextPiece.powerUp ? this.nextPiece.color : this.currentTheme.accent;
+      const color = this.nextPiece.color || this.currentTheme.accent;
 
       g.fillStyle(0x080611, 0.88);
       g.fillRect(panelX, panelY, panelWidth, panelHeight);
@@ -957,23 +1033,35 @@
       const pulse = isBomb ? 0.72 + Math.sin(time / 85) * 0.28 :
                     isFreeze ? 0.85 + Math.sin(time / 140) * 0.15 :
                     0.9 + Math.sin(time / 200 + col + row) * 0.1;
-      const color = block.powerUp ? block.color : this.currentTheme.accent;
+      const color = block.color || this.currentTheme.accent;
 
-      this.graphics.fillStyle(color, alpha * 0.15 * pulse);
-      this.graphics.fillRect(x - 2, y - 2, CELL + 4, CELL + 4);
+      let scale = 1;
+      if (block.scale && block.placedAt) {
+        const t = (time - block.placedAt) / 250;
+        if (t < 1) {
+          scale = 1 + (block.scale - 1) * Math.sin((1 - t) * Math.PI);
+        } else {
+          block.scale = undefined; // clear after done
+        }
+      }
+
+      this.graphics.fillStyle(color, alpha * 0.2 * pulse);
+      this.graphics.fillRect(x + CELL/2 - (CELL/2 + 4) * scale, y + CELL/2 - (CELL/2 + 4) * scale, (CELL + 8) * scale, (CELL + 8) * scale);
 
       this.graphics.fillStyle(0x0a0815, alpha * 0.85);
-      this.graphics.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
-      
-      this.graphics.fillStyle(color, alpha * 0.4 * pulse);
-      this.graphics.fillRect(x + 4, y + 4, CELL - 8, CELL - 8);
-      this.graphics.fillStyle(color, alpha * 0.85 * pulse);
-      this.graphics.fillRect(x + 7, y + 7, CELL - 14, CELL - 14);
+      this.graphics.fillRect(x + CELL/2 - (CELL/2 - 1) * scale, y + CELL/2 - (CELL/2 - 1) * scale, (CELL - 2) * scale, (CELL - 2) * scale);
 
-      this.graphics.fillStyle(0xffffff, alpha * 0.45 * pulse);
-      this.graphics.fillRect(x + 8, y + 8, CELL - 20, 3);
-      this.graphics.lineStyle(block.powerUp ? 3 : 2, color, alpha * 0.9);
-      this.graphics.strokeRect(x, y, CELL, CELL);
+      this.graphics.fillStyle(color, alpha * 0.45 * pulse);
+      this.graphics.fillRect(x + CELL/2 - (CELL/2 - 4) * scale, y + CELL/2 - (CELL/2 - 4) * scale, (CELL - 8) * scale, (CELL - 8) * scale);
+
+      this.graphics.fillStyle(color, alpha * 0.9 * pulse);
+      this.graphics.fillRect(x + CELL/2 - (CELL/2 - 7) * scale, y + CELL/2 - (CELL/2 - 7) * scale, (CELL - 14) * scale, (CELL - 14) * scale);
+
+      this.graphics.fillStyle(0xffffff, alpha * 0.6 * pulse);
+      this.graphics.fillRect(x + CELL/2 - (CELL/2 - 8) * scale, y + CELL/2 - (CELL/2 - 8) * scale, (CELL - 20) * scale, 3 * scale);
+      
+      this.graphics.lineStyle(block.powerUp ? 3 : 2, color, alpha * 0.95);
+      this.graphics.strokeRect(x + CELL/2 - (CELL/2) * scale, y + CELL/2 - (CELL/2) * scale, CELL * scale, CELL * scale);
     }
 
     drawActive(piece) {
@@ -986,26 +1074,41 @@
                         isFreeze ? 0.8 + Math.sin(this.time.now / 110) * 0.2 :
                         0.85 + Math.sin(this.time.now / 150) * 0.15;
       const pulse = piece.falling ? basePulse * 1.1 : basePulse;
-      const color = piece.powerUp ? piece.color : this.currentTheme.accent;
+      const color = piece.color || this.currentTheme.accent;
+
+      if (piece.trail && piece.trail.length > 0) {
+        for (const trailSpark of piece.trail) {
+          const age = this.time.now - trailSpark.time;
+          const alpha = Math.max(0, 1 - age / 300) * 0.25;
+          if (alpha <= 0) continue;
+          const seconds = age / 1000;
+          const x = trailSpark.x + trailSpark.vx * seconds;
+          const y = trailSpark.y + trailSpark.vy * seconds;
+          this.graphics.fillStyle(color, alpha * 0.45);
+          this.graphics.fillCircle(x, y, trailSpark.size * 2.2);
+          this.graphics.fillStyle(0xffffff, alpha * 1.8);
+          this.graphics.fillRect(x - trailSpark.size / 2, y - trailSpark.size / 2, trailSpark.size, trailSpark.size);
+        }
+      }
 
       for (const [cellX, cellY] of piece.cells) {
         const x = left + cellX * CELL;
         const y = top + cellY * CELL;
-        this.graphics.fillStyle(color, 0.2 * pulse);
+        this.graphics.fillStyle(color, 0.25 * pulse);
         this.graphics.fillRect(x - 2, y - 2, CELL + 4, CELL + 4);
 
         this.graphics.fillStyle(0x0a0815, 0.85);
         this.graphics.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
 
-        this.graphics.fillStyle(color, 0.45 * pulse);
+        this.graphics.fillStyle(color, 0.5 * pulse);
         this.graphics.fillRect(x + 4, y + 4, CELL - 8, CELL - 8);
 
-        this.graphics.fillStyle(color, (piece.falling ? 0.95 : 0.85) * pulse);
+        this.graphics.fillStyle(color, (piece.falling ? 0.95 : 0.9) * pulse);
         this.graphics.fillRect(x + 7, y + 7, CELL - 14, CELL - 14);
 
-        this.graphics.fillStyle(0xffffff, 0.5 * pulse);
+        this.graphics.fillStyle(0xffffff, 0.6 * pulse);
         this.graphics.fillRect(x + 8, y + 8, CELL - 20, 3);
-        this.graphics.lineStyle(piece.powerUp ? 3 : 2, piece.falling ? 0xffffff : color, piece.falling ? 0.9 : 0.95);
+        this.graphics.lineStyle(piece.powerUp ? 3 : 2, piece.falling ? 0xffffff : color, piece.falling ? 0.95 : 1);
         this.graphics.strokeRect(x, y, CELL, CELL);
       }
     }
@@ -1017,6 +1120,14 @@
           for (const row of effect.rows) {
             this.graphics.fillStyle(0xffffff, alpha);
             this.graphics.fillRect(BOARD_X, BOARD_Y + row * CELL, COLS * CELL, CELL);
+          }
+        } else if (effect.kind === 'shockwave') {
+          const progress = 1 - (effect.until - time) / 400;
+          if (progress > 0 && progress < 1) {
+            this.graphics.lineStyle(2, effect.color, (1 - progress) * 0.8);
+            this.graphics.strokeCircle(effect.x, effect.y, progress * CELL * 3.5);
+            this.graphics.lineStyle(4, effect.color, (1 - progress) * 0.4);
+            this.graphics.strokeCircle(effect.x, effect.y, progress * CELL * 3);
           }
         } else if (effect.kind === 'flash') {
           const alpha = Math.max(0, (effect.until - time) / effect.duration) * 0.18;
@@ -1080,7 +1191,7 @@
       return {
         type,
         powerUp,
-        color: powerUp ? POWER_UPS[powerUp].color : null,
+        color: powerUp ? POWER_UPS[powerUp].color : NEON_PALETTE[type],
       };
     }
 

@@ -24,6 +24,8 @@ const MAX_COMBO = 3;
 const LAVA_BASE_SPEED = 0.0055;
 const LAVA_SPEED_GROWTH = 1.06;
 const LAVA_SPEED_CAP = 0.013;
+const COLLAPSE_SPEED_MULTIPLIER = 10;
+const COLLAPSE_DURATION_MS = 1_200;
 const TYPES = ["LINE3", "CROSS5", "U5", "STEP5", "L5", "POINTER3"] as const;
 const SHAPES: Record<(typeof TYPES)[number], Array<[number, number]>> = {
   LINE3: [[0, 0], [1, 0], [2, 0]],
@@ -42,6 +44,13 @@ export function lavaSpeedForLevel(level: number): number {
   return Math.min(
     LAVA_SPEED_CAP,
     LAVA_BASE_SPEED * Math.pow(LAVA_SPEED_GROWTH, Math.max(0, level - 1)),
+  );
+}
+
+export function collapseSpeedForLava(lavaTop: number, level: number): number {
+  return Math.max(
+    lavaSpeedForLevel(level) * COLLAPSE_SPEED_MULTIPLIER,
+    Math.max(0, lavaTop - GAME_OVER_LAVA_TOP) / COLLAPSE_DURATION_MS,
   );
 }
 
@@ -147,17 +156,24 @@ export function replayRun(
   let lavaTop = START_LAVA_TOP;
   let lavaPausedUntil = 0;
   let combo = 1;
+  let isCollapsing = false;
+  let collapseLavaSpeed = 0;
 
   function advanceLava(targetMs: number): number | null {
     while (elapsedMs < targetMs) {
       const step = Math.min(SIMULATION_STEP_MS, targetMs - elapsedMs);
       elapsedMs += step;
-      if (elapsedMs > lavaPausedUntil) {
-        const lavaSpeed = lavaSpeedForLevel(level);
+      if (isCollapsing || elapsedMs > lavaPausedUntil) {
+        const lavaSpeed = isCollapsing ? collapseLavaSpeed : lavaSpeedForLevel(level);
         lavaTop -= step * lavaSpeed;
       }
 
-      meltGridAtLava(grid, lavaTop);
+      const melted = meltGridAtLava(grid, lavaTop);
+      if (melted > 0 && !isCollapsing) {
+        isCollapsing = true;
+        collapseLavaSpeed = collapseSpeedForLava(lavaTop, level);
+        lavaPausedUntil = 0;
+      }
       if (lavaTop <= GAME_OVER_LAVA_TOP) return elapsedMs;
     }
     return null;
@@ -168,6 +184,7 @@ export function replayRun(
     if (action.pieceIndex !== index || action.atMs > wallElapsedMs || action.atMs - previousAtMs < 200) return null;
     previousAtMs = action.atMs;
     if (advanceLava(action.atMs) !== null) return null;
+    if (isCollapsing) return null;
     if (
       action.kind !== "anchor" ||
       action.rotation === undefined ||

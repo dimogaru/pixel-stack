@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyScoring, lavaSpeedForLevel, levelForScore, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
+import { applyScoring, collapseSpeedForLava, lavaSpeedForLevel, levelForScore, meltGridAtLava, replayRun, resolveCompactClears, type RunAction } from "./run-replay.ts";
 
 const validFirstAnchor: RunAction = {
   kind: "anchor",
@@ -12,7 +12,7 @@ const validFirstAnchor: RunAction = {
 };
 
 test("derives score from a mechanically valid seeded placement", () => {
-  assert.equal(replayRun(1, [validFirstAnchor], 104_800, 105_800), 25);
+  assert.equal(replayRun(1, [validFirstAnchor], 93_300, 94_300), 25);
 });
 
 test("rejects skipped pieces used to cherry-pick the seeded sequence", () => {
@@ -99,6 +99,12 @@ test("raises lava speed gradually by 6 percent per level and enforces its cap", 
   assert.ok(Math.abs(lavaSpeedForLevel(10) / lavaSpeedForLevel(9) - 1.06) < 1e-10);
   assert.equal(lavaSpeedForLevel(100), 0.013);
   assert.ok(lavaSpeedForLevel(100) < 0.014);
+});
+
+test("accelerates collapse enough to reach the ceiling within 1.2 seconds", () => {
+  const speed = collapseSpeedForLava(638, 1);
+  assert.ok(speed >= lavaSpeedForLevel(1) * 10);
+  assert.ok((638 - 78) / speed <= 1_200);
 });
 
 test("awards fixed anchor and one-time line-clear points", () => {
