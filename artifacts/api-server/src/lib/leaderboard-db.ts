@@ -12,7 +12,7 @@ export type HighScore = {
 };
 
 const artifactDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const databasePath = process.env.SQLITE_PATH ?? path.join(artifactDir, "data", "pixel-stack.sqlite");
+const databasePath = path.resolve(artifactDir, "data", "pixel-stack.sqlite");
 
 mkdirSync(path.dirname(databasePath), { recursive: true });
 
@@ -54,15 +54,6 @@ const insertStatement = database.prepare(`
   INSERT INTO high_scores (name, score)
   VALUES (?, ?)
 `);
-const pruneStatement = database.prepare(`
-  DELETE FROM high_scores
-  WHERE id NOT IN (
-    SELECT id
-    FROM high_scores
-    ORDER BY score DESC, created_at ASC, id ASC
-    LIMIT 20
-  )
-`);
 const insertRunStatement = database.prepare(`
   INSERT INTO game_runs (id, issued_at) VALUES (?, ?)
 `);
@@ -83,7 +74,6 @@ export function insertHighScore(name: string, score: number): void {
   database.exec("BEGIN IMMEDIATE");
   try {
     insertStatement.run(name, score);
-    pruneStatement.run();
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");
