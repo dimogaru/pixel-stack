@@ -464,6 +464,18 @@ function Home() {
                 </ol>
               ) : (
                 <div className="install-options">
+                  <p className="install-intro">
+                    Pixel Stack es un juego web: no necesitas descargar nada para jugar en móvil o escritorio.
+                  </p>
+                  <a
+                    className="official-url"
+                    href="https://pixelstack-app.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="link-official-game"
+                  >
+                    pixelstack-app.com
+                  </a>
                   <article>
                     <MoreVertical size={19} />
                     <div><strong>Android</strong><p>Menú de Chrome (⋮) → “Añadir a pantalla de inicio”.</p></div>

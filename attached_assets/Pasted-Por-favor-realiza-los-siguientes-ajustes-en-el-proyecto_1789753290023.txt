@@ -1,0 +1,26 @@
+Por favor, realiza los siguientes ajustes en el proyecto sin romper ninguna funcionalidad existente. Sé eficiente y modifica solo el código estrictamente necesario:
+
+1. FÍSICA DE BOMBAS / BLOQUES FLOTANTES:
+- Revisa la lógica de detonación de las piezas bomba. 
+- Tras la explosión, aplica una comprobación de gravedad / conectividad a la rejilla: cualquier bloque que quede flotando en el aire (sin apoyo en el suelo o en otro bloque) debe caer automáticamente hasta la lava.
+
+2. DIVERSIFICACIÓN DE PIEZAS (A partir del Nivel 2):
+- En el generador de piezas (piece spawner), comprueba el nivel actual.
+- Si level >= 2, añade al repertorio de piezas nuevas formas (por ejemplo, piezas compuestas por 2 bloques o esquinas de 3 bloques).
+
+3. MEJORA VISUAL DE PIEZAS ESPECIALES:
+- Modifica el renderizado/textura de las piezas especiales para hacerlas claramente distinguibles a simple vista:
+  * Pieza Bomba: Añade un contorno/borde rojo parpadeante o un icono de mecha/bomba.
+  * Pieza Congelar Tiempo: Añade un brillo/aura azul cian helado claro y aumenta el efecto de partículas de hielo.
+
+4. TIEMPO DE CONGELACIÓN:
+- Localiza la constante/variable que define la duración del power-up de congelación de tiempo y auméntala a exactamente 5000 ms (5 segundos).
+
+5. SECCIÓN/TAB 'INSTALAR' (INSTALL):
+- Actualiza el texto/HTML de la pestaña o modal 'Instalar'.
+- Explica claramente que para jugar en escritorio o móvil no se requiere descarga (es un juego web ejecutable directo).
+- Incluye de forma bien visible la URL oficial del proyecto: https://pixelstack-app.com para jugar desde cualquier navegador.
+
+6. INTEGRIDAD Y BACKUP DE LEADERBOARD (CRÍTICO):
+- La tabla de clasificación (Leaderboard) contiene datos reales de jugadores. NO borres, sobrescribas ni alteres la estructura del esquema de la base de datos de puntuaciones.
+- Antes de aplicar cualquier cambio en las rutas del servidor o base de datos, asegura que las funciones de lectura/escritura del Leaderboard permanecen intactas.

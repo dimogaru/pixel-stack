@@ -205,6 +205,9 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .help-steps span { color: #ffcf5a; font: 500 10px var(--app-font-mono); letter-spacing: .08em; }
 .help-steps p, .install-options p { margin: 0; color: #b0aac7; font-size: 13px; line-height: 1.5; }
 .install-options { display: grid; gap: 10px; }
+.install-intro { margin: 0; color: #c8c2d9; font-size: 13px; line-height: 1.5; }
+.official-url { display: block; border: 1px solid rgba(85,242,198,.75); padding: 11px 12px; color: #55f2c6; background: rgba(85,242,198,.06); box-shadow: inset 0 0 14px rgba(85,242,198,.06); font: 500 11px var(--app-font-mono); letter-spacing: .04em; text-align: center; text-decoration: none; }
+.official-url:hover { background: rgba(85,242,198,.12); box-shadow: 0 0 18px rgba(85,242,198,.13); }
 .install-options article { display: grid; grid-template-columns: 30px 1fr; gap: 11px; padding: 15px 13px; border: 1px solid #38305d; background: rgba(28,22,62,.58); }
 .install-options article > svg { color: #55f2c6; margin-top: 1px; }
 .install-options strong { display: block; margin-bottom: 5px; color: #f5f0dd; font: 500 10px var(--app-font-mono); letter-spacing: .1em; text-transform: uppercase; }

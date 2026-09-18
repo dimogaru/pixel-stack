@@ -34,6 +34,7 @@
   const LAVA_SPEED_CAP = 0.013;
   const COLLAPSE_SPEED_MULTIPLIER = 10;
   const COLLAPSE_DURATION_MS = 1200;
+  const FREEZE_DURATION_MS = 5000;
   const levelForScore = (score) => Math.floor(Math.max(0, score) / SCORE_PER_LEVEL) + 1;
   const lavaSpeedForLevel = (level) => Math.min(
     LAVA_SPEED_CAP,
@@ -51,9 +52,12 @@
     STEP5: [[0, 0], [1, 0], [1, 1], [2, 1], [3, 1]],
     L5: [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
     POINTER3: [[0, 0], [1, 0], [0, 1]],
+    DOMINO2: [[0, 0], [1, 0]],
+    CORNER3: [[0, 0], [0, 1], [1, 1]],
   };
 
   const TYPES = Object.keys(SHAPES);
+  const LEVEL_ONE_TYPES = TYPES.filter((type) => type !== 'DOMINO2' && type !== 'CORNER3');
 
   const NEON_PALETTE = {
     LINE3: 0x00ffff,     // Electric Cyan
@@ -61,7 +65,9 @@
     U5: 0x39ff14,        // Neon Green
     STEP5: 0xcfff04,     // Volt Yellow
     L5: 0x8a2be2,        // Deep Purple
-    POINTER3: 0xff3131   // Complementary Neon Red
+    POINTER3: 0xff3131,  // Complementary Neon Red
+    DOMINO2: 0x55f2c6,
+    CORNER3: 0xffcf5a,
   };
 
   function lerpColor(c1, c2, t) {
@@ -365,7 +371,8 @@
 
       if (distSq > 16) {
         if (!this.active.trail) this.active.trail = [];
-        for (let spark = 0; spark < 3; spark += 1) {
+        const trailCount = this.active.powerUp === 'freeze' ? 7 : 3;
+        for (let spark = 0; spark < trailCount; spark += 1) {
           this.active.trail.push({
             x: prevX + Phaser.Math.Between(-12, 12),
             y: prevY + Phaser.Math.Between(-12, 12),
@@ -375,8 +382,9 @@
             time: this.time.now,
           });
         }
-        if (this.active.trail.length > 24) {
-          this.active.trail.splice(0, this.active.trail.length - 24);
+        const trailLimit = this.active.powerUp === 'freeze' ? 42 : 24;
+        if (this.active.trail.length > trailLimit) {
+          this.active.trail.splice(0, this.active.trail.length - trailLimit);
         }
       }
 
@@ -554,7 +562,7 @@
 
     activatePowerUp(powerUp, placedCells) {
       if (powerUp === 'freeze') {
-        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.elapsedRun + 3000);
+        this.lavaPausedUntil = Math.max(this.lavaPausedUntil, this.elapsedRun + FREEZE_DURATION_MS);
         this.startFreezeCountdown(this.lavaPausedUntil);
         this.showFloatingText(t('frozen'), POWER_UPS.freeze.color);
         this.callbacks.onMessage(t('freezeMessage'));
@@ -586,6 +594,7 @@
         this.burstAt(BOARD_X + col * CELL + CELL / 2, BOARD_Y + row * CELL + CELL / 2, block.color || this.currentTheme.accent, 7);
         this.grid[row][col] = null;
       }
+      this.dropUnsupportedBlocks();
       this.lavaTop = Math.min(START_LAVA_TOP, this.lavaTop + CELL * 2);
       this.cameras.main.shake(150, 0.01);
       this.flashBoard(POWER_UPS.bomb.color, 480);
@@ -594,12 +603,54 @@
       global.PixelStackAudio?.playBomb?.();
     }
 
+    dropUnsupportedBlocks() {
+      const supported = new Set();
+      const pending = [];
+      for (let col = 0; col < COLS; col += 1) {
+        if (this.grid[0][col]) pending.push({ col, row: 0 });
+      }
+
+      while (pending.length) {
+        const cell = pending.pop();
+        const key = `${cell.col}:${cell.row}`;
+        if (supported.has(key) || !this.grid[cell.row][cell.col]) continue;
+        supported.add(key);
+        for (const [colOffset, rowOffset] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const col = cell.col + colOffset;
+          const row = cell.row + rowOffset;
+          if (col >= 0 && col < COLS && row >= 0 && row < ROWS && this.grid[row][col]) {
+            pending.push({ col, row });
+          }
+        }
+      }
+
+      for (let row = 0; row < ROWS; row += 1) {
+        for (let col = 0; col < COLS; col += 1) {
+          const block = this.grid[row][col];
+          if (!block || supported.has(`${col}:${row}`)) continue;
+          const x = BOARD_X + col * CELL + CELL / 2;
+          const y = BOARD_Y + row * CELL + CELL / 2;
+          const duration = Phaser.Math.Clamp((this.lavaTop - y) * 1.4, 280, 850);
+          this.effects.push({
+            kind: 'fallingBlock',
+            x,
+            y,
+            color: block.color || this.currentTheme.accent,
+            born: this.time.now,
+            until: this.time.now + duration,
+            targetY: this.lavaTop,
+          });
+          this.grid[row][col] = null;
+        }
+      }
+    }
+
     startFreezeCountdown(until) {
       this.freezeCountdownUntil = until;
       this.freezeCountdownFading = false;
       this.tweens.killTweensOf(this.freezeCountdownLabel);
       this.freezeCountdownLabel
-        .setText('3')
+        .setText(String(Math.max(1, Math.ceil((until - this.elapsedRun) / 1000))))
         .setVisible(true)
         .setAlpha(1)
         .setScale(1);
@@ -1009,6 +1060,10 @@
                     0.9 + Math.sin(time / 200) * 0.1;
       const color = this.nextPiece.color || this.currentTheme.accent;
 
+      if (isFreeze) {
+        g.fillStyle(0x7fe7ff, 0.12 + pulse * 0.08);
+        g.fillCircle(panelX + panelWidth / 2, panelY + panelHeight / 2 + 5, Math.max(shapeWidth, shapeHeight) + 8);
+      }
       g.fillStyle(0x080611, 0.88);
       g.fillRect(panelX, panelY, panelWidth, panelHeight);
       g.lineStyle(2, color, 0.82);
@@ -1026,6 +1081,12 @@
         g.fillRect(x + 2, y + 2, miniCell - 6, 1);
         g.lineStyle(1, color, 0.9);
         g.strokeRect(x, y, miniCell, miniCell);
+        if (isBomb) {
+          g.fillStyle(0x0a0815, 0.9);
+          g.fillCircle(x + miniCell / 2, y + miniCell / 2 + 1, 2);
+          g.lineStyle(1, 0xffd05c, pulse);
+          g.lineBetween(x + 5, y + 3, x + 7, y + 1);
+        }
       }
     }
 
@@ -1039,6 +1100,10 @@
                     0.9 + Math.sin(time / 200 + col + row) * 0.1;
       const color = block.color || this.currentTheme.accent;
 
+      if (isFreeze) {
+        this.graphics.fillStyle(0x7fe7ff, alpha * (0.12 + pulse * 0.1));
+        this.graphics.fillCircle(x + CELL / 2, y + CELL / 2, CELL * (0.7 + pulse * 0.12));
+      }
       let scale = 1;
       if (block.scale && block.placedAt) {
         const t = (time - block.placedAt) / 250;
@@ -1066,6 +1131,14 @@
       
       this.graphics.lineStyle(block.powerUp ? 3 : 2, color, alpha * 0.95);
       this.graphics.strokeRect(x + CELL/2 - (CELL/2) * scale, y + CELL/2 - (CELL/2) * scale, CELL * scale, CELL * scale);
+      if (isBomb) {
+        this.graphics.fillStyle(0x090711, alpha * 0.92);
+        this.graphics.fillCircle(x + CELL / 2, y + CELL / 2 + 2, 8 * scale);
+        this.graphics.lineStyle(3, 0xff315c, alpha * pulse);
+        this.graphics.strokeCircle(x + CELL / 2, y + CELL / 2 + 2, 10 * scale);
+        this.graphics.lineStyle(2, 0xffcf5a, alpha);
+        this.graphics.lineBetween(x + CELL / 2 + 5, y + CELL / 2 - 5, x + CELL / 2 + 10, y + CELL / 2 - 12);
+      }
     }
 
     drawActive(piece) {
@@ -1080,6 +1153,10 @@
       const pulse = piece.falling ? basePulse * 1.1 : basePulse;
       const color = piece.color || this.currentTheme.accent;
 
+      if (isFreeze) {
+        this.graphics.fillStyle(0x7fe7ff, 0.1 + pulse * 0.1);
+        this.graphics.fillRoundedRect(left - 8, top - 8, size.width * CELL + 16, size.height * CELL + 16, 10);
+      }
       if (piece.trail && piece.trail.length > 0) {
         for (const trailSpark of piece.trail) {
           const age = this.time.now - trailSpark.time;
@@ -1114,6 +1191,14 @@
         this.graphics.fillRect(x + 8, y + 8, CELL - 20, 3);
         this.graphics.lineStyle(piece.powerUp ? 3 : 2, piece.falling ? 0xffffff : color, piece.falling ? 0.95 : 1);
         this.graphics.strokeRect(x, y, CELL, CELL);
+        if (isBomb) {
+          this.graphics.fillStyle(0x090711, 0.92);
+          this.graphics.fillCircle(x + CELL / 2, y + CELL / 2 + 2, 8);
+          this.graphics.lineStyle(3, 0xff315c, pulse);
+          this.graphics.strokeCircle(x + CELL / 2, y + CELL / 2 + 2, 10);
+          this.graphics.lineStyle(2, 0xffcf5a, 1);
+          this.graphics.lineBetween(x + CELL / 2 + 5, y + CELL / 2 - 5, x + CELL / 2 + 10, y + CELL / 2 - 12);
+        }
       }
     }
 
@@ -1154,6 +1239,16 @@
           this.graphics.fillCircle(effect.x + 6, effect.y - 5 - progress * 31, 5 + progress * 4);
           this.graphics.lineStyle(2, effect.color, alpha * 0.8);
           this.graphics.strokeRect(effect.x - CELL / 2 + 2, effect.y - CELL / 2 + 2, CELL - 4, CELL - 4);
+        } else if (effect.kind === 'fallingBlock') {
+          const progress = Math.min(1, (time - effect.born) / (effect.until - effect.born));
+          const y = Phaser.Math.Linear(effect.y, effect.targetY, progress * progress);
+          const alpha = Math.max(0, 1 - Math.max(0, progress - 0.75) * 4);
+          this.graphics.fillStyle(effect.color, alpha * 0.25);
+          this.graphics.fillRect(effect.x - CELL / 2 - 2, y - CELL / 2 - 2, CELL + 4, CELL + 4);
+          this.graphics.fillStyle(effect.color, alpha * 0.82);
+          this.graphics.fillRect(effect.x - CELL / 2 + 4, y - CELL / 2 + 4, CELL - 8, CELL - 8);
+          this.graphics.lineStyle(2, effect.color, alpha);
+          this.graphics.strokeRect(effect.x - CELL / 2, y - CELL / 2, CELL, CELL);
         }
       }
     }
@@ -1200,15 +1295,16 @@
     }
 
     nextPieceDescriptor() {
+      const availableTypes = this.level >= 2 ? TYPES : LEVEL_ONE_TYPES;
       if (this.runSeed === null) {
         return {
-          type: Phaser.Utils.Array.GetRandom(TYPES),
+          type: Phaser.Utils.Array.GetRandom(availableTypes),
           specialRoll: Phaser.Math.RND.frac(),
         };
       }
       const randomValue = this.nextRandomValue();
       return {
-        type: TYPES[randomValue % TYPES.length],
+        type: availableTypes[randomValue % availableTypes.length],
         specialRoll: randomValue / 0x100000000,
       };
     }
