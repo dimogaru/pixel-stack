@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { HighScore } from '@workspace/api-client-react';
-import { Pause, Play, RotateCcw, Volume2, VolumeX, Flame, MousePointer2, ArrowUp, Crosshair, Trophy, X } from 'lucide-react';
+import { Pause, Play, RotateCcw, Volume2, VolumeX, Flame, MousePointer2, ArrowUp, Crosshair, Trophy, X, CircleHelp, Gamepad2, Download, Share2, MoreVertical } from 'lucide-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -122,6 +122,8 @@ function Home() {
   const [paused, setPaused] = useState(false);
   const [runKey, setRunKey] = useState(0);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpTab, setHelpTab] = useState<'play' | 'install'>('play');
   const [scores, setScores] = useState<HighScore[]>([]);
   const [leaderboardStatus, setLeaderboardStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [qualifyingScore, setQualifyingScore] = useState<number | null>(null);
@@ -138,6 +140,15 @@ function Home() {
   useEffect(() => {
     window.PixelStackAudio?.setMuted(!soundOn);
   }, [soundOn]);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHelpOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [helpOpen]);
 
   useEffect(() => {
     if (score > best) {
@@ -259,6 +270,14 @@ function Home() {
             </div>
             <button className="icon-button" onClick={() => setSoundOn((value) => !value)} aria-label={soundOn ? t('muteGame') : t('enableSound')} data-testid="button-toggle-sound">
               {soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
+            </button>
+            <button
+              className="icon-button help-trigger"
+              onClick={() => setHelpOpen(true)}
+              aria-label="Abrir ayuda"
+              data-testid="button-open-help"
+            >
+              <CircleHelp size={18} />
             </button>
           </div>
         </header>
@@ -391,6 +410,71 @@ function Home() {
                 ))}
               </ol>
             )}
+          </section>
+        </div>
+      )}
+      {helpOpen && (
+        <div
+          className="help-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="help-title"
+          data-testid="overlay-help"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setHelpOpen(false);
+          }}
+        >
+          <section className="help-card">
+            <button
+              className="help-close"
+              onClick={() => setHelpOpen(false)}
+              aria-label="Cerrar ayuda"
+              data-testid="button-close-help"
+            >
+              <X size={18} />
+            </button>
+            <span className="overlay-kicker">GUÍA DE CAMPO</span>
+            <h2 id="help-title">Ayuda rápida</h2>
+            <div className="help-tabs" role="tablist" aria-label="Secciones de ayuda">
+              <button
+                className={helpTab === 'play' ? 'active' : ''}
+                onClick={() => setHelpTab('play')}
+                role="tab"
+                aria-selected={helpTab === 'play'}
+                data-testid="button-help-play"
+              >
+                <Gamepad2 size={16} /> Cómo jugar
+              </button>
+              <button
+                className={helpTab === 'install' ? 'active' : ''}
+                onClick={() => setHelpTab('install')}
+                role="tab"
+                aria-selected={helpTab === 'install'}
+                data-testid="button-help-install"
+              >
+                <Download size={16} /> Instalar app
+              </button>
+            </div>
+            <div className="help-content" role="tabpanel" data-testid={`panel-help-${helpTab}`}>
+              {helpTab === 'play' ? (
+                <ol className="help-steps">
+                  <li><span>01</span><p>Ancla piezas al techo desde arriba.</p></li>
+                  <li><span>02</span><p>Toca para girar, arrastra para mover y suelta para fijar.</p></li>
+                  <li><span>03</span><p>Limpia filas completas para empujar la lava hacia abajo.</p></li>
+                </ol>
+              ) : (
+                <div className="install-options">
+                  <article>
+                    <MoreVertical size={19} />
+                    <div><strong>Android</strong><p>Menú de Chrome (⋮) → “Añadir a pantalla de inicio”.</p></div>
+                  </article>
+                  <article>
+                    <Share2 size={19} />
+                    <div><strong>iPhone</strong><p>Botón Compartir → “Añadir a pantalla de inicio”.</p></div>
+                  </article>
+                </div>
+              )}
+            </div>
           </section>
         </div>
       )}

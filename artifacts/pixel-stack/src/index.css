@@ -108,6 +108,8 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 }
 .icon-button { width: 34px; height: 34px; display: grid; place-items: center; }
 .icon-button:hover, .control-button:hover { color: #55f2c6; border-color: #55f2c6; background: #201a4b; }
+.help-trigger { border-radius: 50%; color: #55f2c6; border-color: rgba(85,242,198,.7); box-shadow: 0 0 14px rgba(85,242,198,.13), inset 0 0 10px rgba(85,242,198,.05); }
+.help-trigger:hover { box-shadow: 0 0 20px rgba(85,242,198,.3), inset 0 0 12px rgba(85,242,198,.1); }
 .icon-button:active, .control-button:active, .primary-button:active, .secondary-button:active { transform: translateY(2px); }
 .score-strip { margin: 22px 0 12px; display: grid; grid-template-columns: 1fr 1.3fr 1fr; align-items: end; }
 .stat-block { display: flex; flex-direction: column; gap: 3px; }
@@ -186,6 +188,26 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .leaderboard-state { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; border-block: 1px solid #403768; color: #756f9b; font: 9px var(--app-font-mono); letter-spacing: .1em; text-align: center; }
 .leaderboard-state.error { color: #ff8b7f; }
 .leaderboard-state button { border: 1px solid #55f2c6; padding: 8px 12px; background: transparent; color: #55f2c6; font: 8px var(--app-font-mono); cursor: pointer; }
+.help-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(7,5,18,.86); backdrop-filter: blur(9px); }
+.help-card { position: relative; width: min(100%, 390px); max-height: calc(100dvh - 36px); overflow-y: auto; border: 1px solid #55f2c6; padding: 27px 20px 20px; background: linear-gradient(145deg, #181236, #110d28); box-shadow: 0 0 0 5px rgba(85,242,198,.07), 0 0 60px rgba(85,242,198,.14); animation: card-in .25s ease both; }
+.help-card::after { content: ''; position: absolute; top: 0; left: 20px; width: 42px; height: 2px; background: #ffcf5a; box-shadow: 0 0 12px rgba(255,207,90,.65); }
+.help-card h2 { margin: 9px 0 18px; color: #f5f0dd; font-size: 28px; letter-spacing: -.04em; }
+.help-close { position: absolute; top: 13px; right: 13px; width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #443b71; background: transparent; color: #aaa5c3; cursor: pointer; }
+.help-close:hover { color: #ff5f52; border-color: #ff5f52; }
+.help-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #403768; background: rgba(10,7,25,.65); }
+.help-tabs button { min-height: 43px; border: 0; border-right: 1px solid #403768; display: flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: #777198; font: 500 8px var(--app-font-mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.help-tabs button:last-child { border-right: 0; }
+.help-tabs button.active { color: #100d20; background: #55f2c6; box-shadow: 0 0 18px rgba(85,242,198,.2); }
+.help-content { min-height: 210px; padding-top: 17px; }
+.help-steps { list-style: none; margin: 0; padding: 0; }
+.help-steps li { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 13px 0; border-bottom: 1px solid #30294f; }
+.help-steps li:first-child { padding-top: 4px; }
+.help-steps span { color: #ffcf5a; font: 500 10px var(--app-font-mono); letter-spacing: .08em; }
+.help-steps p, .install-options p { margin: 0; color: #b0aac7; font-size: 13px; line-height: 1.5; }
+.install-options { display: grid; gap: 10px; }
+.install-options article { display: grid; grid-template-columns: 30px 1fr; gap: 11px; padding: 15px 13px; border: 1px solid #38305d; background: rgba(28,22,62,.58); }
+.install-options article > svg { color: #55f2c6; margin-top: 1px; }
+.install-options strong { display: block; margin-bottom: 5px; color: #f5f0dd; font: 500 10px var(--app-font-mono); letter-spacing: .1em; text-transform: uppercase; }
 
 @keyframes drift-up { 0%, 100% { transform: translateY(2px); opacity: .5; } 50% { transform: translateY(-3px); opacity: 1; } }
 @keyframes card-in { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -205,4 +227,8 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
   .score-strip { margin: 12px 0 8px; }
   .play-area { min-height: 0; }
   .game-footer { display: none; }
+  .help-card { padding-top: 23px; }
+  .help-card h2 { margin-bottom: 13px; font-size: 24px; }
+  .help-content { min-height: 0; }
+  .help-steps li { padding: 9px 0; }
 }
