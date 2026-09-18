@@ -20,22 +20,6 @@ const database = new DatabaseSync(databasePath);
 database.exec("PRAGMA journal_mode = WAL");
 database.exec("PRAGMA busy_timeout = 5000");
 database.exec(`
-  CREATE TABLE IF NOT EXISTS high_scores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 10),
-    score INTEGER NOT NULL CHECK(score > 0),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-const scoreColumns = database.prepare("PRAGMA table_info(high_scores)").all() as unknown as Array<{ name: string }>;
-if (scoreColumns.some((column) => column.name === "nickname") && !scoreColumns.some((column) => column.name === "name")) {
-  database.exec("ALTER TABLE high_scores RENAME COLUMN nickname TO name");
-}
-database.exec(`
-  CREATE INDEX IF NOT EXISTS high_scores_ranking
-  ON high_scores(score DESC, created_at ASC, id ASC)
-`);
-database.exec(`
   CREATE TABLE IF NOT EXISTS game_runs (
     id TEXT PRIMARY KEY,
     issued_at INTEGER NOT NULL,
@@ -43,17 +27,6 @@ database.exec(`
   )
 `);
 
-const listStatement = database.prepare(`
-  SELECT id, name, score, created_at
-  FROM high_scores
-  ORDER BY score DESC, created_at ASC, id ASC
-  LIMIT 20
-`);
-
-const insertStatement = database.prepare(`
-  INSERT INTO high_scores (name, score)
-  VALUES (?, ?)
-`);
 const insertRunStatement = database.prepare(`
   INSERT INTO game_runs (id, issued_at) VALUES (?, ?)
 `);
@@ -66,18 +39,40 @@ const pruneRunsStatement = database.prepare(`
   DELETE FROM game_runs WHERE issued_at < ?
 `);
 
-export function listHighScores(): HighScore[] {
-  return listStatement.all() as unknown as HighScore[];
+export async function listHighScores(): Promise<HighScore[]> {
+  const result = await pool.query<HighScore>(`
+    SELECT id, name, score, created_at::text AS created_at
+    FROM high_scores
+    ORDER BY score DESC, created_at ASC, id ASC
+    LIMIT 20
+  `);
+  return result.rows;
 }
 
-export function insertHighScore(name: string, score: number): void {
-  database.exec("BEGIN IMMEDIATE");
+export async function insertHighScore(name: string, score: number): Promise<void> {
+  const client = await pool.connect();
   try {
-    insertStatement.run(name, score);
-    database.exec("COMMIT");
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [73120420]);
+    await client.query(
+      "INSERT INTO high_scores (name, score) VALUES ($1, $2)",
+      [name, score],
+    );
+    await client.query(`
+      DELETE FROM high_scores
+      WHERE id NOT IN (
+        SELECT id
+        FROM high_scores
+        ORDER BY score DESC, created_at ASC, id ASC
+        LIMIT 20
+      )
+    `);
+    await client.query("COMMIT");
   } catch (error) {
-    database.exec("ROLLBACK");
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
   }
 }
 

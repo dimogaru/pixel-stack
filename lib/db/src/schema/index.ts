@@ -18,3 +18,4 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./rate-limits.ts";
+export * from "./high-scores.ts";

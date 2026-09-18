@@ -8,9 +8,9 @@ function requestOrigin(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? "unknown";
 }
 
-router.get("/scores", (req, res): void => {
+router.get("/scores", async (req, res): Promise<void> => {
   try {
-    res.json(ListScoresResponse.parse(listHighScores()));
+    res.json(ListScoresResponse.parse(await listHighScores()));
   } catch (error) {
     req.log.error({ err: error }, "Failed to load leaderboard");
     res.status(500).json({ error: "Could not load leaderboard" });
@@ -31,7 +31,7 @@ router.post("/scores", async (req, res): Promise<void> => {
 
   try {
     const name = parsed.data.name.trim().slice(0, 10).toUpperCase();
-    insertHighScore(name, parsed.data.score);
+    await insertHighScore(name, parsed.data.score);
     req.log.info({ name, score: parsed.data.score }, "Leaderboard score saved");
     res.status(200).json(SubmitScoreResponse.parse({ success: true }));
   } catch (error) {
