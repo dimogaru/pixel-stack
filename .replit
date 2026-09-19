@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "postgresql-16"]
+modules = ["nodejs-24", "postgresql-16", "python-base-3.13"]
 
 [deployment]
 router = "application"
@@ -7,6 +7,16 @@ deploymentTarget = "autoscale"
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
+
+[[deployment.responseHeaders]]
+path = "/"
+name = "Cache-Control"
+value = "no-cache, no-store, must-revalidate"
+
+[[deployment.responseHeaders]]
+path = "/index.html"
+name = "Cache-Control"
+value = "no-cache, no-store, must-revalidate"
 
 [workflows]
 runButton = "Project"
