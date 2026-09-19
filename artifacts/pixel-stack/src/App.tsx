@@ -130,6 +130,7 @@ function Home() {
   const [nickname, setNickname] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [submitMessage, setSubmitMessage] = useState('');
+  const [lastSubmittedScore, setLastSubmittedScore] = useState<{ name: string; score: number } | null>(null);
   const [runSeed, setRunSeed] = useState<number>(createLocalRunSeed);
 
   useEffect(() => {
@@ -228,6 +229,7 @@ function Home() {
       }
       setSubmitStatus('submitted');
       setSubmitMessage(t('scoreSaved'));
+      setLastSubmittedScore({ name: cleanNickname, score: qualifyingScore });
       await loadScores(true);
     } catch (error) {
       console.error('Could not save leaderboard score:', error);
@@ -246,6 +248,7 @@ function Home() {
     setQualifyingScore(null);
     setSubmitStatus('idle');
     setSubmitMessage('');
+    setLastSubmittedScore(null);
     setNickname('');
     setRunSeed(createLocalRunSeed());
     setRunKey((value) => value + 1);
@@ -401,13 +404,35 @@ function Home() {
             {leaderboardStatus === 'idle' && scores.length === 0 && <div className="leaderboard-state">{t('noScores')}</div>}
             {leaderboardStatus === 'idle' && scores.length > 0 && (
               <ol className="leaderboard-list">
-                {scores.map((entry, index) => (
-                  <li key={`${entry.id ?? 'score'}-${entry.name}-${entry.score}-${index}`} className={index < 3 ? `rank-${index + 1}` : ''}>
-                    <span className="rank">{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{entry.name}</strong>
-                    <span className="leader-score">{String(entry.score).padStart(4, '0')}</span>
-                  </li>
-                ))}
+                {scores.map((entry, index) => {
+                  const isCurrentPlayer = lastSubmittedScore !== null
+                    && entry.name === lastSubmittedScore.name
+                    && entry.score === lastSubmittedScore.score
+                    && scores.findIndex((candidate) => (
+                      candidate.name === lastSubmittedScore.name
+                      && candidate.score === lastSubmittedScore.score
+                    )) === index;
+                  const rowClasses = [
+                    index < 3 ? `rank-${index + 1}` : '',
+                    isCurrentPlayer ? 'current-player' : '',
+                  ].filter(Boolean).join(' ');
+                  const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : null;
+
+                  return (
+                    <li
+                      key={`${entry.id ?? 'score'}-${entry.name}-${entry.score}-${index}`}
+                      className={rowClasses}
+                      data-testid={`row-leaderboard-${index + 1}`}
+                    >
+                      <span className="rank">
+                        {medal ? <span className="rank-medal" aria-label={`Puesto ${index + 1}`}>{medal}</span> : String(index + 1).padStart(2, '0')}
+                      </span>
+                      <strong>{entry.name}</strong>
+                      {isCurrentPlayer && <span className="current-player-badge">TÚ</span>}
+                      <span className="leader-score">{String(entry.score).padStart(4, '0')}</span>
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </section>
