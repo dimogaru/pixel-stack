@@ -44,10 +44,15 @@ export const submitScoreBodyNameMax = 10;
 export const submitScoreBodyNameRegExp = new RegExp('^[A-Za-z0-9_-]+$');
 
 
+export const submitScoreBodyTimePlayedSecondsMin = 0;
+
+
 
 export const SubmitScoreBody = zod.object({
   "name": zod.string().min(1).max(submitScoreBodyNameMax).regex(submitScoreBodyNameRegExp),
-  "score": zod.number().int().min(1)
+  "score": zod.number().int().min(1),
+  "level": zod.number().int().min(1).optional(),
+  "timePlayedSeconds": zod.number().min(submitScoreBodyTimePlayedSecondsMin).optional()
 })
 
 export const SubmitScoreResponse = zod.object({

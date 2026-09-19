@@ -105,4 +105,10 @@ components:
         score:
           type: integer
           minimum: 1
+        level:
+          type: integer
+          minimum: 1
+        timePlayedSeconds:
+          type: number
+          minimum: 0
 

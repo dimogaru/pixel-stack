@@ -127,6 +127,7 @@ function Home() {
   const [scores, setScores] = useState<HighScore[]>([]);
   const [leaderboardStatus, setLeaderboardStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [qualifyingScore, setQualifyingScore] = useState<number | null>(null);
+  const [qualifyingRun, setQualifyingRun] = useState<{ level: number; timePlayedSeconds: number } | null>(null);
   const [nickname, setNickname] = useState('');
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [submitMessage, setSubmitMessage] = useState('');
@@ -173,14 +174,21 @@ function Home() {
     }
   }, []);
 
-  const checkQualification = useCallback(async (finalScore: number) => {
+  const checkQualification = useCallback(async (finalScore: number, endedAtMs: number) => {
     setQualifyingScore(null);
+    setQualifyingRun(null);
     setSubmitStatus('idle');
     setSubmitMessage('');
     setNickname('');
     const currentScores = await loadScores();
     if (!currentScores) return;
-    if (isTopScore(finalScore, currentScores)) setQualifyingScore(finalScore);
+    if (isTopScore(finalScore, currentScores)) {
+      setQualifyingScore(finalScore);
+      setQualifyingRun({
+        level: Math.floor(finalScore / 500) + 1,
+        timePlayedSeconds: Number((endedAtMs / 1000).toFixed(1)),
+      });
+    }
   }, [loadScores]);
 
   const callbacks = useMemo<GameCallbacks>(() => ({
@@ -196,8 +204,8 @@ function Home() {
     onRunStart: () => {},
     onRunAction: () => {},
     onRunInvalid: () => {},
-    onGameOver: (finalScore) => {
-      void checkQualification(finalScore);
+    onGameOver: (finalScore, endedAtMs) => {
+      void checkQualification(finalScore, endedAtMs);
     },
   }), [checkQualification]);
 
@@ -221,6 +229,8 @@ function Home() {
         body: JSON.stringify({
           name: cleanNickname,
           score: qualifyingScore,
+          level: qualifyingRun?.level,
+          timePlayedSeconds: qualifyingRun?.timePlayedSeconds,
         }),
       });
       if (!response.ok) {
@@ -246,6 +256,7 @@ function Home() {
     setGameState('ready');
     setMessage(t('initialHint'));
     setQualifyingScore(null);
+    setQualifyingRun(null);
     setSubmitStatus('idle');
     setSubmitMessage('');
     setLastSubmittedScore(null);

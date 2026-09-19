@@ -32,5 +32,9 @@ export interface ScoreInput {
   name: string;
   /** @minimum 1 */
   score: number;
+  /** @minimum 1 */
+  level?: number;
+  /** @minimum 0 */
+  timePlayedSeconds?: number;
 }
 
