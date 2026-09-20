@@ -15,7 +15,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 // 1. Servir archivos estáticos del frontend pixel-stack
-const clientDistPath = path.resolve(process.cwd(), "artifacts/pixel-stack/dist");
+const clientDistPath = path.resolve(process.cwd(), "../pixel-stack/dist");
 app.use(express.static(clientDistPath));
 
 // 2. Redirección para Single Page Application (SPA)
