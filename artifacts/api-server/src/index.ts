@@ -19,7 +19,7 @@ const clientDistPath = path.resolve(process.cwd(), "artifacts/pixel-stack/dist")
 app.use(express.static(clientDistPath));
 
 // 2. Redirección para Single Page Application (SPA)
-app.get("*", (req: Request, res: Response, next: NextFunction) => {
+app.get("/(.*)", (req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith("/api")) {
     return next();
   }
