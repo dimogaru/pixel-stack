@@ -1,7 +1,6 @@
 import path from "path";
 import express, { Request, Response, NextFunction } from "express";
-import { app } from "./app";
-import { logger } from "./logger";
+import app from "./app";
 
 const rawPort = process.env["PORT"];
 
@@ -15,11 +14,11 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Servir archivos estáticos del frontend
+// 1. Servir archivos estáticos del frontend pixel-stack
 const clientDistPath = path.resolve(process.cwd(), "artifacts/pixel-stack/dist");
 app.use(express.static(clientDistPath));
 
-// Fallback de SPA con tipos explícitos para TypeScript
+// 2. Redirección para Single Page Application (SPA)
 app.get("*", (req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith("/api")) {
     return next();
@@ -27,6 +26,7 @@ app.get("*", (req: Request, res: Response, next: NextFunction) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
 
+// 3. Arrancar servidor
 app.listen(port, () => {
-  logger.info({ port }, "Server listening");
+  console.log(`Server listening on port ${port}`);
 });
