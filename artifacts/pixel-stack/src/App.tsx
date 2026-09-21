@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import { gamePlatform } from '@/lib/platform-adapter';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -135,6 +136,10 @@ function Home() {
   const [runSeed, setRunSeed] = useState<number>(createLocalRunSeed);
 
   useEffect(() => {
+    gamePlatform.initialize();
+  }, []);
+
+  useEffect(() => {
     window.localStorage.removeItem('pixelStack_best');
     window.localStorage.removeItem('pixel-stack-best');
   }, []);
@@ -201,10 +206,11 @@ function Home() {
       if (state === 'playing') setPaused(false);
     },
     onMessage: setMessage,
-    onRunStart: () => {},
+    onRunStart: () => gamePlatform.runStarted(),
     onRunAction: () => {},
     onRunInvalid: () => {},
     onGameOver: (finalScore, endedAtMs) => {
+      gamePlatform.runStopped();
       void checkQualification(finalScore, endedAtMs);
     },
   }), [checkQualification]);
@@ -541,6 +547,8 @@ function Router() {
   return (
     <ErrorBoundary resetKey={useLocation()[0]}>
       <Switch>
+        <Route path="/crazygames" component={Home} />
+        <Route path="/crazygames.html" component={Home} />
         <Route path="/" component={Home} />
         <Route component={NotFound} />
       </Switch>

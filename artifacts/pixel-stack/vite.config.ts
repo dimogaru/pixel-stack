@@ -63,6 +63,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(import.meta.dirname, 'index.html'),
+        crazygames: path.resolve(import.meta.dirname, 'crazygames.html'),
+      },
+    },
   },
   server: {
     port,
