@@ -20,21 +20,9 @@ type CrazyGamesSdk = {
   };
 };
 
-type AipTag = {
-  cmd?: {
-    player?: {
-      push: (callback: () => void) => void;
-    };
-  };
-  adplayer?: {
-    startPreRoll: () => void;
-  };
-};
-
 declare global {
   interface Window {
     CrazyGames?: { SDK: CrazyGamesSdk };
-    aiptag?: AipTag;
   }
 }
 
@@ -102,12 +90,6 @@ async function requestCrazyGamesAd(): Promise<void> {
   });
 }
 
-function requestAdinPlayAd(): void {
-  window.aiptag?.cmd?.player?.push(() => {
-    window.aiptag?.adplayer?.startPreRoll();
-  });
-}
-
 export const gamePlatform = {
   isCrazyGames: isCrazyGamesEnvironment(),
   fullscreenEnabled: !isCrazyGamesEnvironment(),
@@ -117,21 +99,15 @@ export const gamePlatform = {
   },
 
   runStarted(): void {
-    if (this.isCrazyGames) {
-      void ensureCrazyGamesInitialized().then(() => {
-        window.CrazyGames?.SDK.game.gameplayStart();
-      });
-    }
+    if (!this.isCrazyGames) return;
 
+    void ensureCrazyGamesInitialized().then(() => {
+      window.CrazyGames?.SDK.game.gameplayStart();
+    });
     const now = Date.now();
     if (!shouldRequestAd(now)) return;
     markAdRequested(now);
-
-    if (this.isCrazyGames) {
-      void requestCrazyGamesAd();
-    } else {
-      requestAdinPlayAd();
-    }
+    void requestCrazyGamesAd();
   },
 
   runStopped(): void {

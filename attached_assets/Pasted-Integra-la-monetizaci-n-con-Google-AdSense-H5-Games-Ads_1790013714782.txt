@@ -1,0 +1,32 @@
+Integra la monetización con Google AdSense / H5 Games Ads en el proyecto Pixel Stack utilizando el Publisher ID "ca-pub-9984763727647656" con una política de anuncios ESTRICTAMENTE NO INVASIVA.
+
+Reglas de Frecuencia y Control de Anuncios:
+- NO invasivo: NUNCA mostrar anuncios durante la partida activa (gameplay).
+- Primera partida: Mostrar un único anuncio de vídeo (Interstitial/Midroll) ÚNICAMENTE al finalizar la primera partida (en la pantalla de Game Over).
+- Frecuencia posterior: Tras el primer anuncio, implementar un temporizador de enfriamiento (cooldown) de 8 minutos. No se debe mostrar ningún anuncio nuevo al terminar una partida si no han transcurrido al menos 8 minutos desde el último anuncio mostrado.
+
+Cambios técnicos requeridos:
+
+1. Inserción del SDK en index.html:
+   Añade el SDK dentro del <head> de index.html con la inicialización del controlador de anuncios:
+   
+   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9984763727647656" crossorigin="anonymous"></script>
+   <script>
+     window.adsbygoogle = window.adsbygoogle || [];
+     const adBreak = adConfig = function(o) { adsbygoogle.push(o); };
+   </script>
+
+2. Servicio de Control de Anuncios (ej. src/lib/adsense.ts):
+   Crea una clase/módulo para gestionar el estado de los anuncios:
+   - Guardar variables de estado: `hasPlayedFirstGame` (boolean) y `lastAdTimestamp` (number).
+   - Método `shouldShowAd()`: Retorna true si es el final de la primera partida O si han transcurrido más de 8 minutos (480.000 ms) desde `lastAdTimestamp`.
+   - Método `showGameOverAd(onComplete: () => void)`: 
+     * Comprueba `shouldShowAd()`. Si no cumple la condición, ejecuta `onComplete()` inmediatamente sin llamar a AdSense.
+     * Si cumple la condición, llama a `adBreak({ type: 'next', name: 'game_over', ... })`.
+     * Pausa el AudioContext/sonido del juego en `beforeAd` y lo reanuda en `afterAd`.
+     * Actualiza `lastAdTimestamp = Date.now()` y marca `hasPlayedFirstGame = true`.
+     * Ejecuta `onComplete()` siempre al finalizar o si AdSense falla/no está disponible, garantizando que el usuario jamás quede bloqueado.
+
+3. Integración en los componentes de UI:
+   - Invoca `showGameOverAd` justo al desencadenar la secuencia de Game Over o al pulsar "Nueva Partida" tras perder.
+   - Asegúrate de que el flujo de juego continue sin interrupciones ni pantallas colgadas si el usuario usa un AdBlocker o si AdSense no devuelve anuncio.

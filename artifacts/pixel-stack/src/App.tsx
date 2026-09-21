@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import { adsenseGameAds } from '@/lib/adsense';
 import { gamePlatform } from '@/lib/platform-adapter';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
@@ -134,10 +135,15 @@ function Home() {
   const [submitMessage, setSubmitMessage] = useState('');
   const [lastSubmittedScore, setLastSubmittedScore] = useState<{ name: string; score: number } | null>(null);
   const [runSeed, setRunSeed] = useState<number>(createLocalRunSeed);
+  const soundOnRef = useRef(soundOn);
 
   useEffect(() => {
     gamePlatform.initialize();
   }, []);
+
+  useEffect(() => {
+    soundOnRef.current = soundOn;
+  }, [soundOn]);
 
   useEffect(() => {
     window.localStorage.removeItem('pixelStack_best');
@@ -211,6 +217,15 @@ function Home() {
     onRunInvalid: () => {},
     onGameOver: (finalScore, endedAtMs) => {
       gamePlatform.runStopped();
+      if (!gamePlatform.isCrazyGames) {
+        adsenseGameAds.showGameOverAd(
+          () => {},
+          {
+            pause: () => window.PixelStackAudio?.setMuted(true),
+            resume: () => window.PixelStackAudio?.setMuted(!soundOnRef.current),
+          },
+        );
+      }
       void checkQualification(finalScore, endedAtMs);
     },
   }), [checkQualification]);
