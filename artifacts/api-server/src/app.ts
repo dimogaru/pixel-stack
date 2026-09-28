@@ -32,4 +32,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+app.get("/download-aab", (_req, res) => {
+  res.download("/app/app-release-bundle.aab");
+});
+
 export default app;
