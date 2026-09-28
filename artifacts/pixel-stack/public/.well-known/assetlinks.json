@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.pixelstack.app",
+      "package_name": "com.pixelstack_app.twa",
       "sha256_cert_fingerprints": [
-        "REEMPLAZAR_CON_TU_SHA256_FINGERPRINT"
+        "5C:D6:C7:31:F0:7A:7E:B6:91:6A:53:D7:BB:58:7D:83:4F:C8:F3:15:D3:DC:A2:2C:B4:D3:AF:EE:3F:F5:F5:4A"
       ]
     }
   }
