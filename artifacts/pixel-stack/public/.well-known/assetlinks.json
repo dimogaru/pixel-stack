@@ -1,12 +1,10 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.pixelstack_app.twa",
-      "sha256_cert_fingerprints": [
-        "5C:D6:C7:31:F0:7A:7E:B6:91:6A:53:D7:BB:58:7D:83:4F:C8:F3:15:D3:DC:A2:2C:B4:D3:AF:EE:3F:F5:F5:4A"
-      ]
-    }
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "pixelstack.app.com",
+    "sha256_cert_fingerprints": [
+      "96:27:C9:91:1A:4B:2B:72:17:18:4E:DD:E8:10:94:03:2F:82:BA:21:28:4F:CB:04:E2:AF:4F:BE:CE:6C:CC:B2"
+    ]
   }
-]
+}]
