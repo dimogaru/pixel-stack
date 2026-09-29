@@ -16,7 +16,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 // 1. Servir archivos estáticos del frontend pixel-stack
 const clientDistPath = path.resolve(process.cwd(), "../pixel-stack/dist/public");
-app.use(express.static(clientDistPath));
+app.use(express.static(clientDistPath, { dotfiles: "allow" }));
 
 // 2. Redirección para Single Page Application (SPA)
 // En Express 5 con path-to-regexp v8 se usa /{*splat} o /*splat
