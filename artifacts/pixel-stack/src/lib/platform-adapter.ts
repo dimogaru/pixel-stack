@@ -1,8 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { AdMob } from '@capacitor-community/admob';
 
+// Control de Tiempos y Frecuencia
 const TEN_MINUTES_MS = 10 * 60 * 1000;
-const GAMES_PER_AD = 3;
+const GAMES_BEFORE_FIRST_AD = 2;
 const CRAZYGAMES_SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v2.js';
 
 // AdMob Configuration
@@ -37,8 +38,8 @@ export const isCrazyGamesEnvironment = (
   pathname = window.location.pathname.toLowerCase(),
 ): boolean => pathname.includes('/crazygames') || pathname.endsWith('/crazygames.html');
 
-let gamesSinceAd = 0;
-let lastAdAt = Date.now();
+let totalGamesPlayed = 0;
+let lastAdAt = 0;
 let crazyGamesInit: Promise<void> | null = null;
 let admobInit: Promise<void> | null = null;
 
@@ -104,7 +105,7 @@ async function showAdMobInterstitial(): Promise<void> {
   try {
     await ensureAdMobInitialized();
     await AdMob.showInterstitial();
-    // Precargar el siguiente anuncio para la próxima partida
+    // Precargar el siguiente anuncio para la próxima ocasión
     await AdMob.prepareInterstitial({
       adId: INTERSTITIAL_AD_ID,
     });
@@ -115,12 +116,22 @@ async function showAdMobInterstitial(): Promise<void> {
 
 // --- Control de Frecuencia ---
 function shouldRequestAd(now: number): boolean {
-  gamesSinceAd += 1;
-  return gamesSinceAd >= GAMES_PER_AD || now - lastAdAt >= TEN_MINUTES_MS;
+  totalGamesPlayed += 1;
+
+  // 1. Mostrar anuncio justo al terminar la 2ª partida
+  if (totalGamesPlayed === GAMES_BEFORE_FIRST_AD) {
+    return true;
+  }
+
+  // 2. A partir de la 2ª partida, mostrar si transcurrieron 10 minutos desde el último anuncio
+  if (totalGamesPlayed > GAMES_BEFORE_FIRST_AD && lastAdAt > 0) {
+    return now - lastAdAt >= TEN_MINUTES_MS;
+  }
+
+  return false;
 }
 
 function markAdRequested(now: number): void {
-  gamesSinceAd = 0;
   lastAdAt = now;
 }
 
@@ -162,7 +173,7 @@ export const gamePlatform = {
       });
     }
 
-    // Al morir el jugador (Game Over), lanzar publicidad si estamos en Android/iOS y cumple la frecuencia
+    // Al perder la partida (Game Over) en Android / iOS
     if (this.isNative) {
       const now = Date.now();
       if (shouldRequestAd(now)) {
