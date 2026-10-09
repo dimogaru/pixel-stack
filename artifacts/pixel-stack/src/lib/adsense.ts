@@ -1,3 +1,5 @@
+import { requestAdMobInterstitial } from './platform-adapter';
+
 const AD_COOLDOWN_MS = 8 * 60 * 1000;
 
 type AdBreakConfig = {
@@ -23,10 +25,10 @@ export const adsenseGameAds = {
     return !hasPlayedFirstGame || now - lastAdTimestamp >= AD_COOLDOWN_MS;
   },
 
-  showGameOverAd(
+  async showGameOverAd(
     onComplete: () => void,
     audio: { pause: () => void; resume: () => void },
-  ): void {
+  ): Promise<void> {
     const now = Date.now();
     if (!this.shouldShowAd(now)) {
       onComplete();
@@ -43,6 +45,11 @@ export const adsenseGameAds = {
       audio.resume();
       onComplete();
     };
+
+    if (await requestAdMobInterstitial()) {
+      completeOnce();
+      return;
+    }
 
     if (typeof window.adBreak !== 'function') {
       completeOnce();

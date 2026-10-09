@@ -2,6 +2,71 @@ const TEN_MINUTES_MS = 10 * 60 * 1000;
 const GAMES_PER_AD = 3;
 const CRAZYGAMES_SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v2.js';
 
+const ADMOB_INTERSTITIAL_ID = 'ca-app-pub-9984763727647656/4175470107';
+
+type CapacitorAdMob = {
+  initialize?: () => Promise<void>;
+  prepareInterstitial: (options: { adId: string }) => Promise<unknown>;
+  showInterstitial: () => Promise<unknown>;
+};
+type CordovaAdMob = {
+  prepareInterstitial?: (
+    options: { adId: string; autoShow: boolean },
+    onSuccess: () => void,
+    onError: (error: unknown) => void,
+  ) => void | Promise<unknown>;
+  createInterstitial?: CordovaAdMob['prepareInterstitial'];
+};
+type NativeAdWindow = Window & {
+  Capacitor?: {
+    isNativePlatform?: () => boolean;
+    getPlatform?: () => string;
+    Plugins?: { AdMob?: CapacitorAdMob };
+  };
+  plugins?: { AdMob?: CordovaAdMob };
+  AdMob?: CordovaAdMob;
+};
+
+let adMobInitialized = false;
+
+// Only use an injected native bridge; never import or load a native SDK on web.
+export async function requestAdMobInterstitial(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const nativeWindow = window as NativeAdWindow;
+    const capacitor = nativeWindow.Capacitor;
+    const isNative = capacitor?.isNativePlatform?.()
+      ?? (capacitor?.getPlatform?.() === 'android' || capacitor?.getPlatform?.() === 'ios');
+    const capacitorAdMob = capacitor?.Plugins?.AdMob;
+    if (isNative && typeof capacitorAdMob?.prepareInterstitial === 'function'
+      && typeof capacitorAdMob.showInterstitial === 'function') {
+      if (!adMobInitialized) {
+        await capacitorAdMob.initialize?.();
+        adMobInitialized = true;
+      }
+      await capacitorAdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_ID });
+      await capacitorAdMob.showInterstitial();
+      return true;
+    }
+
+    const cordovaAdMob = nativeWindow.plugins?.AdMob ?? nativeWindow.AdMob;
+    const prepare = cordovaAdMob?.prepareInterstitial ?? cordovaAdMob?.createInterstitial;
+    if (typeof prepare === 'function') {
+      await prepare.call(
+        cordovaAdMob,
+        { adId: ADMOB_INTERSTITIAL_ID, autoShow: true },
+        () => {},
+        (error) => console.warn('Native AdMob interstitial failed:', error),
+      );
+      return true;
+    }
+    console.log('AdMob skipped: browser or no compatible native AdMob bridge.');
+  } catch (error) {
+    console.warn('Native AdMob interstitial failed:', error);
+  }
+  return false;
+}
+
 type CrazyGamesSdk = {
   init?: () => Promise<void>;
   ad: {
