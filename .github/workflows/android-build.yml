@@ -33,6 +33,8 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Compilar la app Web (Pixel Stack)
+        env:
+          PORT: 5000
         run: pnpm --filter @workspace/pixel-stack build
 
       - name: Inicializar e Integrar Capacitor Android
