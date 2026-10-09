@@ -1,0 +1,48 @@
+name: Compilar Android (.aab)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configurar Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Build Web
+        run: npm run build
+
+      - name: Sincronizar Capacitor
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Compilar AAB
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease
+
+      - name: Subir Artifact (.aab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-stack-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
