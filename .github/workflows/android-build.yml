@@ -39,15 +39,19 @@ jobs:
           NODE_ENV: 'production'
         run: pnpm --filter @workspace/pixel-stack build
 
+      - name: Instalar Capacitor en el subproyecto
+        run: pnpm --filter @workspace/pixel-stack add -D @capacitor/cli @capacitor/core @capacitor/android @capacitor-community/admob
+
       - name: Inicializar e Integrar Capacitor Android
         run: |
-          pnpm exec cap init PixelStack com.pixelstack.app --web-dir artifacts/pixel-stack/dist
-          pnpm exec cap add android || true
-          pnpm exec cap sync android
+          cd artifacts/pixel-stack
+          pnpx cap init PixelStack com.pixelstack.app --web-dir dist
+          pnpx cap add android || true
+          pnpx cap sync android
 
       - name: Compilar AAB
         run: |
-          cd android
+          cd artifacts/pixel-stack/android
           chmod +x gradlew
           ./gradlew bundleRelease
 
@@ -55,4 +59,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pixel-stack-release-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          path: artifacts/pixel-stack/android/app/build/outputs/bundle/release/app-release.aab
