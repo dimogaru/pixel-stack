@@ -54,14 +54,28 @@ jobs:
           pnpm capacitor add android || true
           pnpm capacitor sync android
 
-      - name: Compilar AAB
+      - name: Generar Keystore de firma
+        run: |
+          cd artifacts/pixel-stack/android
+          keytool -genkeypair -v -keystore release.keystore -alias pixelstack -keyalg RSA -keysize 2048 -validity 10000 -storepass pixelstackpass -keypass pixelstackpass -dname "CN=PixelStack, OU=Dev, O=PixelStack, L=Sevilla, S=Sevilla, C=ES"
+
+      - name: Compilar AAB y Firmar
         run: |
           cd artifacts/pixel-stack/android
           chmod +x gradlew
           ./gradlew bundleRelease
+          
+          # Firmar el paquete generado
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass pixelstackpass app/build/outputs/bundle/release/app-release.aab pixelstack
 
-      - name: Subir Artifact (.aab)
+      - name: Subir Artifact (.aab firmado)
         uses: actions/upload-artifact@v4
         with:
           name: pixel-stack-release-aab
           path: artifacts/pixel-stack/android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Subir Keystore de Firma (Copia de Seguridad)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-stack-keystore
+          path: artifacts/pixel-stack/android/release.keystore
