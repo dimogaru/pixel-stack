@@ -18,11 +18,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Configurar Java JDK 17
+      - name: Configurar Java JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
       - name: Instalar pnpm
         uses: pnpm/action-setup@v3
@@ -45,13 +45,11 @@ jobs:
       - name: Preparar directorio de dist e Inicializar Capacitor
         run: |
           cd artifacts/pixel-stack
-          # Asegurar que la carpeta dist exista con el index.html
           mkdir -p dist
           if [ -d "public" ]; then cp -r public/* dist/ 2>/dev/null || true; fi
           if [ -f "index.html" ]; then cp index.html dist/; fi
           if [ -d "dist/public" ]; then cp -r dist/public/* dist/; fi
           
-          # Ejecutar Capacitor
           pnpm capacitor init PixelStack com.pixelstack.app --web-dir dist
           pnpm capacitor add android || true
           pnpm capacitor sync android
