@@ -1,5 +1,9 @@
+import { Capacitor } from '@capacitor/core';
+import { AdMob } from '@capacitor-community/admob';
+
+// Control de Tiempos y Frecuencia
 const TEN_MINUTES_MS = 10 * 60 * 1000;
-const GAMES_PER_AD = 3;
+const GAMES_BEFORE_FIRST_AD = 2;
 const CRAZYGAMES_SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v2.js';
 
 const ADMOB_INTERSTITIAL_ID = 'ca-app-pub-9984763727647656/4175470107';
@@ -95,9 +99,10 @@ export const isCrazyGamesEnvironment = (
   pathname = window.location.pathname.toLowerCase(),
 ): boolean => pathname.includes('/crazygames') || pathname.endsWith('/crazygames.html');
 
-let gamesSinceAd = 0;
-let lastAdAt = Date.now();
+let totalGamesPlayed = 0;
+let lastAdAt = 0;
 let crazyGamesInit: Promise<void> | null = null;
+let admobInit: Promise<void> | null = null;
 
 function loadCrazyGamesSdk(): Promise<void> {
   if (window.CrazyGames?.SDK) return Promise.resolve();
@@ -136,13 +141,58 @@ function ensureCrazyGamesInitialized(): Promise<void> {
   return crazyGamesInit;
 }
 
+// --- AdMob Helpers ---
+async function initializeAdMob(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await AdMob.initialize();
+    await AdMob.prepareInterstitial({
+      adId: INTERSTITIAL_AD_ID,
+    });
+  } catch (error) {
+    console.warn('AdMob initialization failed:', error);
+  }
+}
+
+function ensureAdMobInitialized(): Promise<void> {
+  if (!admobInit) {
+    admobInit = initializeAdMob();
+  }
+  return admobInit;
+}
+
+async function showAdMobInterstitial(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await ensureAdMobInitialized();
+    await AdMob.showInterstitial();
+    // Precargar el siguiente anuncio para la próxima ocasión
+    await AdMob.prepareInterstitial({
+      adId: INTERSTITIAL_AD_ID,
+    });
+  } catch (error) {
+    console.warn('AdMob interstitial failed:', error);
+  }
+}
+
+// --- Control de Frecuencia ---
 function shouldRequestAd(now: number): boolean {
-  gamesSinceAd += 1;
-  return gamesSinceAd >= GAMES_PER_AD || now - lastAdAt >= TEN_MINUTES_MS;
+  totalGamesPlayed += 1;
+
+  // 1. Mostrar anuncio justo al terminar la 2ª partida
+  if (totalGamesPlayed === GAMES_BEFORE_FIRST_AD) {
+    return true;
+  }
+
+  // 2. A partir de la 2ª partida, mostrar si transcurrieron 10 minutos desde el último anuncio
+  if (totalGamesPlayed > GAMES_BEFORE_FIRST_AD && lastAdAt > 0) {
+    return now - lastAdAt >= TEN_MINUTES_MS;
+  }
+
+  return false;
 }
 
 function markAdRequested(now: number): void {
-  gamesSinceAd = 0;
   lastAdAt = now;
 }
 
@@ -157,28 +207,40 @@ async function requestCrazyGamesAd(): Promise<void> {
 
 export const gamePlatform = {
   isCrazyGames: isCrazyGamesEnvironment(),
+  isNative: Capacitor.isNativePlatform(),
   fullscreenEnabled: !isCrazyGamesEnvironment(),
 
   initialize(): void {
     if (this.isCrazyGames) void ensureCrazyGamesInitialized();
+    if (this.isNative) void ensureAdMobInitialized();
   },
 
   runStarted(): void {
-    if (!this.isCrazyGames) return;
-
-    void ensureCrazyGamesInitialized().then(() => {
-      window.CrazyGames?.SDK.game.gameplayStart();
-    });
-    const now = Date.now();
-    if (!shouldRequestAd(now)) return;
-    markAdRequested(now);
-    void requestCrazyGamesAd();
+    if (this.isCrazyGames) {
+      void ensureCrazyGamesInitialized().then(() => {
+        window.CrazyGames?.SDK.game.gameplayStart();
+      });
+      const now = Date.now();
+      if (!shouldRequestAd(now)) return;
+      markAdRequested(now);
+      void requestCrazyGamesAd();
+    }
   },
 
   runStopped(): void {
-    if (!this.isCrazyGames) return;
-    void ensureCrazyGamesInitialized().then(() => {
-      window.CrazyGames?.SDK.game.gameplayStop();
-    });
+    if (this.isCrazyGames) {
+      void ensureCrazyGamesInitialized().then(() => {
+        window.CrazyGames?.SDK.game.gameplayStop();
+      });
+    }
+
+    // Al perder la partida (Game Over) en Android / iOS
+    if (this.isNative) {
+      const now = Date.now();
+      if (shouldRequestAd(now)) {
+        markAdRequested(now);
+        void showAdMobInterstitial();
+      }
+    }
   },
 };
