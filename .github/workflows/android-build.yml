@@ -42,9 +42,16 @@ jobs:
       - name: Instalar Capacitor en el subproyecto
         run: pnpm --filter @workspace/pixel-stack add -D @capacitor/cli @capacitor/core @capacitor/android @capacitor-community/admob
 
-      - name: Inicializar e Integrar Capacitor Android
+      - name: Preparar directorio de dist e Inicializar Capacitor
         run: |
           cd artifacts/pixel-stack
+          # Asegurar que la carpeta dist exista con el index.html
+          mkdir -p dist
+          if [ -d "public" ]; then cp -r public/* dist/ 2>/dev/null || true; fi
+          if [ -f "index.html" ]; then cp index.html dist/; fi
+          if [ -d "dist/public" ]; then cp -r dist/public/* dist/; fi
+          
+          # Ejecutar Capacitor
           pnpm capacitor init PixelStack com.pixelstack.app --web-dir dist
           pnpm capacitor add android || true
           pnpm capacitor sync android
