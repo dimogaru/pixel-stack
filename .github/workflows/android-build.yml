@@ -24,16 +24,22 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Instalar dependencias
-        run: npm install
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
 
-      - name: Build Web
-        run: npm run build
+      - name: Instalar dependencias con pnpm
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Sincronizar Capacitor
+      - name: Compilar la app Web (Pixel Stack)
+        run: pnpm --filter @workspace/pixel-stack build
+
+      - name: Inicializar e Integrar Capacitor Android
         run: |
-          npx cap add android || true
-          npx cap sync android
+          pnpm exec cap init PixelStack com.pixelstack.app --web-dir artifacts/pixel-stack/dist
+          pnpm exec cap add android || true
+          pnpm exec cap sync android
 
       - name: Compilar AAB
         run: |
