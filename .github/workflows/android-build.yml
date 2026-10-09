@@ -45,9 +45,9 @@ jobs:
       - name: Inicializar e Integrar Capacitor Android
         run: |
           cd artifacts/pixel-stack
-          pnpx cap init PixelStack com.pixelstack.app --web-dir dist
-          pnpx cap add android || true
-          pnpx cap sync android
+          pnpm capacitor init PixelStack com.pixelstack.app --web-dir dist
+          pnpm capacitor add android || true
+          pnpm capacitor sync android
 
       - name: Compilar AAB
         run: |
