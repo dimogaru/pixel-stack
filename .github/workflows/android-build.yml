@@ -54,6 +54,14 @@ jobs:
           pnpm capacitor add android || true
           pnpm capacitor sync android
 
+      - name: Configurar AdMob en AndroidManifest.xml
+        run: |
+          MANIFEST="artifacts/pixel-stack/android/app/src/main/AndroidManifest.xml"
+          ADMOB_APP_ID="ca-app-pub-9984763727647656~5245009196"
+          
+          # Inyectar la meta-data de AdMob dentro de <application>
+          sed -i "/<\/application>/i \        <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"$ADMOB_APP_ID\"/>" $MANIFEST
+
       - name: Generar Keystore de firma
         run: |
           cd artifacts/pixel-stack/android
@@ -65,7 +73,6 @@ jobs:
           chmod +x gradlew
           ./gradlew bundleRelease
           
-          # Firmar el paquete generado
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass pixelstackpass app/build/outputs/bundle/release/app-release.aab pixelstack
 
       - name: Subir Artifact (.aab firmado)
