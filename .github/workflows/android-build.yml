@@ -54,12 +54,16 @@ jobs:
           pnpm capacitor add android || true
           pnpm capacitor sync android
 
-      - name: Configurar AdMob en AndroidManifest.xml
+      - name: Configurar AdMob e Incrementar VersionCode a 2
         run: |
           MANIFEST="artifacts/pixel-stack/android/app/src/main/AndroidManifest.xml"
           ADMOB_APP_ID="ca-app-pub-9984763727647656~5245009196"
-          
           sed -i "/<\/application>/i \        <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"$ADMOB_APP_ID\"/>" $MANIFEST
+
+          # Incrementar versionCode a 2 en build.gradle
+          GRADLE_FILE="artifacts/pixel-stack/android/app/build.gradle"
+          sed -i 's/versionCode 1/versionCode 2/g' $GRADLE_FILE
+          sed -i 's/versionName "1.0"/versionName "1.1"/g' $GRADLE_FILE
 
       - name: Decodificar Keystore de Firma guardado
         env:
@@ -68,7 +72,7 @@ jobs:
           cd artifacts/pixel-stack/android
           echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
 
-      - name: Compilar AAB y Firmar con la Clave Original
+      - name: Compilar AAB y Firmar
         env:
           STORE_PASS: ${{ secrets.KEYSTORE_STORE_PASS }}
           KEY_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
