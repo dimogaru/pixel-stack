@@ -59,30 +59,28 @@ jobs:
           MANIFEST="artifacts/pixel-stack/android/app/src/main/AndroidManifest.xml"
           ADMOB_APP_ID="ca-app-pub-9984763727647656~5245009196"
           
-          # Inyectar la meta-data de AdMob dentro de <application>
           sed -i "/<\/application>/i \        <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"$ADMOB_APP_ID\"/>" $MANIFEST
 
-      - name: Generar Keystore de firma
+      - name: Decodificar Keystore de Firma guardado
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           cd artifacts/pixel-stack/android
-          keytool -genkeypair -v -keystore release.keystore -alias pixelstack -keyalg RSA -keysize 2048 -validity 10000 -storepass pixelstackpass -keypass pixelstackpass -dname "CN=PixelStack, OU=Dev, O=PixelStack, L=Sevilla, S=Sevilla, C=ES"
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
 
-      - name: Compilar AAB y Firmar
+      - name: Compilar AAB y Firmar con la Clave Original
+        env:
+          STORE_PASS: ${{ secrets.KEYSTORE_STORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
         run: |
           cd artifacts/pixel-stack/android
           chmod +x gradlew
           ./gradlew bundleRelease
           
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass pixelstackpass app/build/outputs/bundle/release/app-release.aab pixelstack
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass "$STORE_PASS" app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
 
       - name: Subir Artifact (.aab firmado)
         uses: actions/upload-artifact@v4
         with:
           name: pixel-stack-release-aab
           path: artifacts/pixel-stack/android/app/build/outputs/bundle/release/app-release.aab
-
-      - name: Subir Keystore de Firma (Copia de Seguridad)
-        uses: actions/upload-artifact@v4
-        with:
-          name: pixel-stack-keystore
-          path: artifacts/pixel-stack/android/release.keystore
