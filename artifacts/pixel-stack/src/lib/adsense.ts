@@ -1,6 +1,9 @@
-import { requestAdMobInterstitial } from './platform-adapter';
+import { isNativeAdEnvironment, requestAdMobInterstitial } from './platform-adapter';
+import { beginAd, canRequestAd, cancelPendingAds } from './ad-session';
 
-const AD_COOLDOWN_MS = 8 * 60 * 1000;
+const WEB_COOLDOWN_MS = 8 * 60 * 1000;
+const NATIVE_COOLDOWN_MS = 10 * 60 * 1000;
+let nativeGamesPlayed = 0;
 
 type AdBreakConfig = {
   type: 'next';
@@ -17,56 +20,75 @@ declare global {
   }
 }
 
-let hasPlayedFirstGame = false;
-let lastAdTimestamp = 0;
-
 export const adsenseGameAds = {
-  shouldShowAd(now = Date.now()): boolean {
-    return !hasPlayedFirstGame || now - lastAdTimestamp >= AD_COOLDOWN_MS;
+  cancelPending: cancelPendingAds,
+
+  shouldShowAd(): boolean {
+    return canRequestAd(isNativeAdEnvironment() ? NATIVE_COOLDOWN_MS : WEB_COOLDOWN_MS);
   },
 
   async showGameOverAd(
     onComplete: () => void,
     audio: { pause: () => void; resume: () => void },
   ): Promise<void> {
-    const now = Date.now();
-    if (!this.shouldShowAd(now)) {
+    const native = isNativeAdEnvironment();
+    if (native && ++nativeGamesPlayed < 2) {
+      onComplete();
+      return;
+    }
+    const session = beginAd(native ? NATIVE_COOLDOWN_MS : WEB_COOLDOWN_MS);
+    if (!session) {
       onComplete();
       return;
     }
 
-    hasPlayedFirstGame = true;
-    lastAdTimestamp = now;
-
-    let completed = false;
-    const completeOnce = () => {
-      if (completed) return;
-      completed = true;
+    let muted = false;
+    let cancelled = false;
+    const resume = () => {
+      if (!muted) return;
+      muted = false;
       audio.resume();
-      onComplete();
     };
-
-    if (await requestAdMobInterstitial()) {
-      completeOnce();
-      return;
-    }
-
-    if (typeof window.adBreak !== 'function') {
-      completeOnce();
-      return;
-    }
+    const pause = () => {
+      if (session.signal.aborted || muted) return;
+      muted = true;
+      audio.pause();
+    };
+    const onCancel = () => {
+      cancelled = true;
+      resume();
+    };
+    session.signal.addEventListener('abort', onCancel, { once: true });
 
     try {
-      window.adBreak({
-        type: 'next',
-        name: 'game_over',
-        beforeAd: audio.pause,
-        afterAd: completeOnce,
-        adBreakDone: completeOnce,
-      });
+      if (native) {
+        pause();
+        await requestAdMobInterstitial(session);
+        // Never fall back to a second provider after native failure/cancellation.
+      } else if (typeof window.adBreak === 'function') {
+        await new Promise<void>((resolve) => {
+          window.adBreak!({
+            type: 'next',
+            name: 'game_over',
+            beforeAd: () => {
+              session.markShown();
+              pause();
+            },
+            afterAd: resume,
+            // afterAd may run before adBreakDone: keep the lock until terminal.
+            adBreakDone: resolve,
+          });
+        });
+      } else {
+        console.log('Game-over ad skipped: no browser ad provider.');
+      }
     } catch (error) {
-      console.warn('AdSense game-over ad failed:', error);
-      completeOnce();
+      console.warn('Game-over ad failed:', error);
+    } finally {
+      session.signal.removeEventListener('abort', onCancel);
+      resume();
+      session.finish();
+      if (!cancelled) onComplete();
     }
   },
 };

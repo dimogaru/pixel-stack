@@ -140,10 +140,26 @@ function Home() {
   const [lastSubmittedScore, setLastSubmittedScore] = useState<{ name: string; score: number } | null>(null);
   const [runSeed, setRunSeed] = useState<number>(createLocalRunSeed);
   const soundOnRef = useRef(soundOn);
+  const handledGameOverRef = useRef(false);
 
   useEffect(() => {
     gamePlatform.initialize();
+    const cancelAds = () => adsenseGameAds.cancelPending();
+    const onVisibilityChange = () => {
+      if (document.hidden) cancelAds();
+    };
+    window.addEventListener('pagehide', cancelAds);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelAds();
+      window.removeEventListener('pagehide', cancelAds);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
+
+  useEffect(() => {
+    if (leaderboardOpen || helpOpen) adsenseGameAds.cancelPending();
+  }, [leaderboardOpen, helpOpen]);
 
   useEffect(() => {
     soundOnRef.current = soundOn;
@@ -234,13 +250,18 @@ function Home() {
       if (state === 'playing') setPaused(false);
     },
     onMessage: setMessage,
-    onRunStart: () => gamePlatform.runStarted(),
+    onRunStart: () => {
+      handledGameOverRef.current = false;
+      gamePlatform.runStarted();
+    },
     onRunAction: () => {},
     onRunInvalid: () => {},
     onGameOver: (finalScore, endedAtMs) => {
+      if (handledGameOverRef.current) return;
+      handledGameOverRef.current = true;
       gamePlatform.runStopped();
       if (!gamePlatform.isCrazyGames) {
-        adsenseGameAds.showGameOverAd(
+        void adsenseGameAds.showGameOverAd(
           () => {},
           {
             pause: () => window.PixelStackAudio?.setMuted(true),
@@ -289,6 +310,9 @@ function Home() {
   };
 
   const restart = () => {
+    adsenseGameAds.cancelPending();
+    // Ignore late callbacks from the old scene until the next run really starts.
+    handledGameOverRef.current = true;
     setScore(0);
     setLevel(1);
     setCombo(1);

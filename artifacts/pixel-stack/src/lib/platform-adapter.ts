@@ -1,3 +1,5 @@
+import { beginAd, cancelPendingAds, type AdSession } from './ad-session';
+
 // Control de Tiempos y Frecuencia
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 const GAMES_BEFORE_FIRST_AD = 2;
@@ -9,6 +11,10 @@ type CapacitorAdMob = {
   initialize?: () => Promise<void>;
   prepareInterstitial: (options: { adId: string }) => Promise<unknown>;
   showInterstitial: () => Promise<unknown>;
+  addListener: (
+    event: string,
+    callback: () => void,
+  ) => Promise<{ remove: () => Promise<void> }> | { remove: () => Promise<void> };
 };
 type CordovaAdMob = {
   prepareInterstitial?: (
@@ -17,6 +23,7 @@ type CordovaAdMob = {
     onError: (error: unknown) => void,
   ) => void | Promise<unknown>;
   createInterstitial?: CordovaAdMob['prepareInterstitial'];
+  showInterstitial?: () => void | Promise<unknown>;
 };
 type NativeAdWindow = Window & {
   Capacitor?: {
@@ -41,40 +48,82 @@ function isNativePlatform(): boolean {
   }
 }
 
-// Only use an injected native bridge; never import or load a native SDK on web.
-export async function requestAdMobInterstitial(): Promise<boolean> {
+export function isNativeAdEnvironment(): boolean {
   if (typeof window === 'undefined') return false;
+  const nativeWindow = window as NativeAdWindow;
+  return isNativePlatform() || Boolean(nativeWindow.plugins?.AdMob || nativeWindow.AdMob);
+}
+
+// Only use an injected native bridge; never import or load a native SDK on web.
+export async function requestAdMobInterstitial(session: AdSession): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  const cleanups: Array<() => void | Promise<void>> = [];
+  let settle!: () => void;
+  const dismissed = new Promise<void>((resolve) => { settle = resolve; });
   try {
+    if (session.signal.aborted) return false;
     const nativeWindow = window as NativeAdWindow;
     const capacitor = nativeWindow.Capacitor;
-    const isNative = capacitor?.isNativePlatform?.()
-      ?? (capacitor?.getPlatform?.() === 'android' || capacitor?.getPlatform?.() === 'ios');
     const capacitorAdMob = capacitor?.Plugins?.AdMob;
-    if (isNative && typeof capacitorAdMob?.prepareInterstitial === 'function'
-      && typeof capacitorAdMob.showInterstitial === 'function') {
+    if (isNativePlatform() && typeof capacitorAdMob?.prepareInterstitial === 'function'
+      && typeof capacitorAdMob.showInterstitial === 'function'
+      && typeof capacitorAdMob.addListener === 'function') {
+      for (const event of ['interstitialAdDismissed', 'interstitialAdFailedToShow']) {
+        const listener = await capacitorAdMob.addListener(event, settle);
+        cleanups.push(() => listener.remove());
+      }
+      if (session.signal.aborted) return false;
       if (!adMobInitialized) {
         await capacitorAdMob.initialize?.();
         adMobInitialized = true;
       }
+      if (session.signal.aborted) return false;
       await capacitorAdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_ID });
+      if (session.signal.aborted) return false;
       await capacitorAdMob.showInterstitial();
+      session.markShown();
+      // showInterstitial resolves when presentation starts, not when it closes.
+      await dismissed;
       return true;
     }
 
     const cordovaAdMob = nativeWindow.plugins?.AdMob ?? nativeWindow.AdMob;
     const prepare = cordovaAdMob?.prepareInterstitial ?? cordovaAdMob?.createInterstitial;
-    if (typeof prepare === 'function') {
-      await prepare.call(
-        cordovaAdMob,
-        { adId: ADMOB_INTERSTITIAL_ID, autoShow: true },
-        () => {},
-        (error) => console.warn('Native AdMob interstitial failed:', error),
-      );
+    if (typeof prepare === 'function' && typeof cordovaAdMob?.showInterstitial === 'function') {
+      const onDismiss = (event: Event) => {
+        const adType = (event as CustomEvent<{ adType?: string }>).detail?.adType
+          ?? (event as Event & { adType?: string }).adType;
+        if (!adType || adType === 'interstitial') settle();
+      };
+      for (const event of ['onAdDismiss', 'onAdFailLoad', 'admob.interstitial.dismiss', 'admob.interstitial.showfail']) {
+        document.addEventListener(event, onDismiss);
+        cleanups.push(() => document.removeEventListener(event, onDismiss));
+      }
+      await new Promise<void>((resolve, reject) => {
+        const pending = prepare.call(
+          cordovaAdMob,
+          { adId: ADMOB_INTERSTITIAL_ID, autoShow: false },
+          () => resolve(),
+          reject,
+        );
+        // Support both callback-based Cordova and promise-based native bridges.
+        if (pending) Promise.resolve(pending).then(() => resolve(), reject);
+      });
+      if (session.signal.aborted) return false;
+      await cordovaAdMob.showInterstitial();
+      session.markShown();
+      await dismissed;
       return true;
     }
     console.log('AdMob skipped: browser or no compatible native AdMob bridge.');
   } catch (error) {
     console.warn('Native AdMob interstitial failed:', error);
+  } finally {
+    await Promise.all(cleanups.map(async (cleanup) => {
+      try { await cleanup(); } catch (error) {
+        console.warn('Could not remove AdMob listener:', error);
+      }
+    }));
   }
   return false;
 }
@@ -110,7 +159,6 @@ export const isCrazyGamesEnvironment = (
 let totalGamesPlayed = 0;
 let lastAdAt = 0;
 let crazyGamesInit: Promise<void> | null = null;
-let admobInit: Promise<void> | null = null;
 
 function loadCrazyGamesSdk(): Promise<void> {
   if (window.CrazyGames?.SDK) return Promise.resolve();
@@ -149,44 +197,6 @@ function ensureCrazyGamesInitialized(): Promise<void> {
   return crazyGamesInit;
 }
 
-// --- AdMob Helpers ---
-async function initializeAdMob(): Promise<void> {
-  if (!isNativePlatform()) return;
-  const AdMob = (window as NativeAdWindow).Capacitor?.Plugins?.AdMob;
-  if (!AdMob) return;
-  try {
-    await AdMob.initialize?.();
-    await AdMob.prepareInterstitial({
-      adId: ADMOB_INTERSTITIAL_ID,
-    });
-  } catch (error) {
-    console.warn('AdMob initialization failed:', error);
-  }
-}
-
-function ensureAdMobInitialized(): Promise<void> {
-  if (!admobInit) {
-    admobInit = initializeAdMob();
-  }
-  return admobInit;
-}
-
-async function showAdMobInterstitial(): Promise<void> {
-  if (!isNativePlatform()) return;
-  const AdMob = (window as NativeAdWindow).Capacitor?.Plugins?.AdMob;
-  if (!AdMob) return;
-  try {
-    await ensureAdMobInitialized();
-    await AdMob.showInterstitial();
-    // Precargar el siguiente anuncio para la próxima ocasión
-    await AdMob.prepareInterstitial({
-      adId: ADMOB_INTERSTITIAL_ID,
-    });
-  } catch (error) {
-    console.warn('AdMob interstitial failed:', error);
-  }
-}
-
 // --- Control de Frecuencia ---
 function shouldRequestAd(now: number): boolean {
   totalGamesPlayed += 1;
@@ -209,25 +219,39 @@ function markAdRequested(now: number): void {
 }
 
 async function requestCrazyGamesAd(): Promise<void> {
-  await ensureCrazyGamesInitialized();
-  window.CrazyGames?.SDK.ad.requestAd('midroll', {
-    adStarted: () => {},
-    adFinished: () => {},
-    adError: (error) => console.warn('CrazyGames midroll failed:', error),
-  });
+  const session = beginAd(TEN_MINUTES_MS);
+  if (!session) return;
+  try {
+    await ensureCrazyGamesInitialized();
+    if (session.signal.aborted || !window.CrazyGames?.SDK) return;
+    await new Promise<void>((resolve) => {
+      window.CrazyGames!.SDK.ad.requestAd('midroll', {
+        adStarted: session.markShown,
+        adFinished: resolve,
+        adError: (error) => {
+          console.warn('CrazyGames midroll failed:', error);
+          resolve();
+        },
+      });
+    });
+  } catch (error) {
+    console.warn('CrazyGames midroll failed:', error);
+  } finally {
+    session.finish();
+  }
 }
 
 export const gamePlatform = {
   isCrazyGames: isCrazyGamesEnvironment(),
-  isNative: isNativePlatform(),
+  isNative: isNativeAdEnvironment(),
   fullscreenEnabled: !isCrazyGamesEnvironment(),
 
   initialize(): void {
     if (this.isCrazyGames) void ensureCrazyGamesInitialized();
-    if (this.isNative) void ensureAdMobInitialized();
   },
 
   runStarted(): void {
+    cancelPendingAds();
     if (this.isCrazyGames) {
       void ensureCrazyGamesInitialized().then(() => {
         window.CrazyGames?.SDK.game.gameplayStart();
@@ -246,13 +270,6 @@ export const gamePlatform = {
       });
     }
 
-    // Al perder la partida (Game Over) en Android / iOS
-    if (this.isNative) {
-      const now = Date.now();
-      if (shouldRequestAd(now)) {
-        markAdRequested(now);
-        void showAdMobInterstitial();
-      }
-    }
+    // AdMob is requested only by adsenseGameAds.showGameOverAd().
   },
 };
