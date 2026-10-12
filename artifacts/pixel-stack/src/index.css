@@ -76,7 +76,7 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
   z-index: 1;
   width: min(100%, 464px);
   min-height: 100dvh;
-  padding: max(17px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+  padding: max(17px, env(safe-area-inset-top, 0px)) 16px 14px;
   display: flex;
   flex-direction: column;
 }
@@ -125,16 +125,16 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .meter-bars i { display: block; width: 17px; height: 4px; background: #ff5f52; opacity: .72; transform: skewX(-25deg); }
 .meter-bars i:nth-child(2), .meter-bars i:nth-child(3) { opacity: .45; }
 .meter-bars i:nth-child(4), .meter-bars i:nth-child(5) { background: #4a3d6a; opacity: 1; }
-.play-area { position: relative; width: 100%; aspect-ratio: 420 / 720; min-height: 480px; overflow: hidden; border: 1px solid #443b71; background: #130f28; box-shadow: 0 20px 60px rgba(2,1,10,.42), inset 0 0 0 1px rgba(85,242,198,.08); touch-action: none; }
+.play-area { position: relative; z-index: 0; isolation: isolate; flex-shrink: 0; width: 100%; aspect-ratio: 420 / 720; min-height: 480px; overflow: hidden; border: 1px solid #443b71; background: #130f28; box-shadow: 0 20px 60px rgba(2,1,10,.42), inset 0 0 0 1px rgba(85,242,198,.08); }
 .game-canvas, .game-canvas canvas { display: block; width: 100%; height: 100%; }
-.game-canvas { position: absolute; inset: 0; }
+.game-canvas { position: absolute; inset: 0; touch-action: none; }
 .top-copy { position: absolute; top: 13.6%; left: 7%; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
 .copy-line { font-size: 8px; color: #55f2c6; }
 .copy-line.faint { color: #756f9b; font-size: 7px; }
 .drag-hint { position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center; gap: 8px; width: max-content; max-width: 86%; color: #ede9db; font: 9px var(--app-font-mono); letter-spacing: .06em; pointer-events: none; text-align: center; }
 .drag-hint svg:first-child { color: #55f2c6; flex: none; }
 .hint-arrow { color: #ffcf5a; animation: drift-up 1.6s ease-in-out infinite; flex: none; }
-.state-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(11,8,24,.6); backdrop-filter: blur(4px); padding: 20px; }
+.state-overlay { position: absolute; inset: 0; display: grid; place-items: center; align-items: safe center; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; background: rgba(11,8,24,.6); backdrop-filter: blur(4px); padding: 20px; }
 .overlay-card { width: min(100%, 300px); padding: 27px 24px 25px; border: 1px solid #55f2c6; background: rgba(21,15,48,.93); box-shadow: 0 0 0 5px rgba(85,242,198,.08), 0 24px 80px rgba(4,2,14,.6); animation: card-in .35s ease both; }
 .game-over-card { border-color: #ff5f52; box-shadow: 0 0 0 5px rgba(255,95,82,.08), 0 24px 80px rgba(4,2,14,.6); }
 .overlay-kicker { color: #55f2c6; font-size: 9px; }
@@ -148,7 +148,15 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .result-row { border-top: 1px solid #403768; padding: 10px 0; display: flex; justify-content: space-between; color: #817b9e; font: 9px var(--app-font-mono); letter-spacing: .1em; }
 .result-row strong { color: #f5f0dd; font: 500 17px var(--app-font-mono); letter-spacing: .04em; }
 .result-row strong.best { color: #ffcf5a; }
-.control-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0 8px; }
+.bottom-controls {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+  min-height: calc(52px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: #130f28;
+}
+.control-row { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 11px 0 8px; pointer-events: auto; }
 .control-button { min-height: 33px; padding: 0 10px; display: flex; align-items: center; gap: 7px; font: 9px var(--app-font-mono); letter-spacing: .08em; }
 .control-button:disabled { opacity: .34; cursor: not-allowed; }
 .leaderboard-trigger { color: #ffcf5a; }
@@ -239,7 +247,6 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 @media (max-height: 700px) and (max-width: 759px) {
   .game-shell { padding-top: 10px; }
   .score-strip { margin: 12px 0 8px; }
-  .play-area { min-height: 0; }
   .game-footer { display: none; }
   .help-card { padding-top: 23px; }
   .help-card h2 { margin-bottom: 13px; font-size: 24px; }

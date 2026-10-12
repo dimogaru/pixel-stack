@@ -1,9 +1,9 @@
 import { isNativeAdEnvironment, requestAdMobInterstitial } from './platform-adapter';
-import { beginAd, canRequestAd, cancelPendingAds } from './ad-session';
+import { beginAd, canRequestAd, cancelPendingAds, lastAdShownTimestamp } from './ad-session';
 
 const WEB_COOLDOWN_MS = 8 * 60 * 1000;
-const NATIVE_COOLDOWN_MS = 10 * 60 * 1000;
-let nativeGamesPlayed = 0;
+const NATIVE_COOLDOWN_MS = 7 * 60 * 1000;
+let isFirstGameCompleted = false;
 
 type AdBreakConfig = {
   type: 'next';
@@ -27,16 +27,21 @@ export const adsenseGameAds = {
     return canRequestAd(isNativeAdEnvironment() ? NATIVE_COOLDOWN_MS : WEB_COOLDOWN_MS);
   },
 
-  async showGameOverAd(
+  async tryShowGameOverAd(
     onComplete: () => void,
     audio: { pause: () => void; resume: () => void },
   ): Promise<void> {
     const native = isNativeAdEnvironment();
-    if (native && ++nativeGamesPlayed < 2) {
-      onComplete();
-      return;
+    if (native) {
+      const isFirst = !isFirstGameCompleted;
+      isFirstGameCompleted = true;
+      const lastAdShown = lastAdShownTimestamp();
+      if (!isFirst && lastAdShown !== null && Date.now() - lastAdShown < NATIVE_COOLDOWN_MS) {
+        onComplete();
+        return;
+      }
     }
-    const session = beginAd(native ? NATIVE_COOLDOWN_MS : WEB_COOLDOWN_MS);
+    const session = beginAd(native ? NATIVE_COOLDOWN_MS : WEB_COOLDOWN_MS, !native);
     if (!session) {
       onComplete();
       return;

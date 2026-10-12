@@ -1,4 +1,6 @@
+import { Capacitor } from '@capacitor/core';
 import { beginAd, cancelPendingAds, type AdSession } from './ad-session';
+import type { AdMobPlugin, InterstitialAdPluginEvents } from '@capacitor-community/admob';
 
 // Control de Tiempos y Frecuencia
 const TEN_MINUTES_MS = 10 * 60 * 1000;
@@ -7,15 +9,6 @@ const CRAZYGAMES_SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v2.js';
 
 const ADMOB_INTERSTITIAL_ID = 'ca-app-pub-9984763727647656/4175470107';
 
-type CapacitorAdMob = {
-  initialize?: () => Promise<void>;
-  prepareInterstitial: (options: { adId: string }) => Promise<unknown>;
-  showInterstitial: () => Promise<unknown>;
-  addListener: (
-    event: string,
-    callback: () => void,
-  ) => Promise<{ remove: () => Promise<void> }> | { remove: () => Promise<void> };
-};
 type CordovaAdMob = {
   prepareInterstitial?: (
     options: { adId: string; autoShow: boolean },
@@ -26,23 +19,17 @@ type CordovaAdMob = {
   showInterstitial?: () => void | Promise<unknown>;
 };
 type NativeAdWindow = Window & {
-  Capacitor?: {
-    isNativePlatform?: () => boolean;
-    getPlatform?: () => string;
-    Plugins?: { AdMob?: CapacitorAdMob };
-  };
   plugins?: { AdMob?: CordovaAdMob };
   AdMob?: CordovaAdMob;
 };
 
-let adMobInitialized = false;
+let admobPromise: Promise<AdMobPlugin> | null = null;
+let preparation: Promise<void> | null = null;
 
 function isNativePlatform(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    const capacitor = (window as NativeAdWindow).Capacitor;
-    return capacitor?.isNativePlatform?.()
-      ?? ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? 'web');
+    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
   } catch {
     return false;
   }
@@ -54,35 +41,74 @@ export function isNativeAdEnvironment(): boolean {
   return isNativePlatform() || Boolean(nativeWindow.plugins?.AdMob || nativeWindow.AdMob);
 }
 
-// Only use an injected native bridge; never import or load a native SDK on web.
+async function nativeAdMob(): Promise<AdMobPlugin> {
+  if (!admobPromise) {
+    admobPromise = import('@capacitor-community/admob')
+      .then(async ({ AdMob }) => {
+        await AdMob.initialize();
+        return AdMob;
+      })
+      .catch((error: unknown) => {
+        admobPromise = null;
+        throw error;
+      });
+  }
+  return admobPromise;
+}
+
+// Preload once; concurrent startup and GAME_OVER calls share the same preparation.
+export function warmupNativeInterstitial(): Promise<void> {
+  if (!isNativePlatform()) return Promise.resolve();
+  if (!preparation) {
+    preparation = nativeAdMob()
+      .then((AdMob) => AdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_ID }))
+      .then(() => {})
+      .catch((error: unknown) => {
+        preparation = null;
+        throw error;
+      });
+  }
+  return preparation;
+}
+
+// Never load the AdMob plugin code in an ordinary web browser.
 export async function requestAdMobInterstitial(session: AdSession): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   const cleanups: Array<() => void | Promise<void>> = [];
+  let attemptedShow = false;
+  let actuallyShown = false;
   let settle!: () => void;
   const dismissed = new Promise<void>((resolve) => { settle = resolve; });
   try {
     if (session.signal.aborted) return false;
     const nativeWindow = window as NativeAdWindow;
-    const capacitor = nativeWindow.Capacitor;
-    const capacitorAdMob = capacitor?.Plugins?.AdMob;
-    if (isNativePlatform() && typeof capacitorAdMob?.prepareInterstitial === 'function'
-      && typeof capacitorAdMob.showInterstitial === 'function'
-      && typeof capacitorAdMob.addListener === 'function') {
-      for (const event of ['interstitialAdDismissed', 'interstitialAdFailedToShow']) {
-        const listener = await capacitorAdMob.addListener(event, settle);
-        cleanups.push(() => listener.remove());
+    if (isNativePlatform()) {
+      await warmupNativeInterstitial();
+      if (session.signal.aborted) return false;
+      const AdMob = await nativeAdMob();
+      const listenerShown = await AdMob.addListener(
+        'interstitialAdShowed' as InterstitialAdPluginEvents.Showed, () => {
+        actuallyShown = true;
+        session.markShown();
+      });
+      cleanups.push(() => listenerShown.remove());
+      const listenerDismissed = await AdMob.addListener(
+        'interstitialAdDismissed' as InterstitialAdPluginEvents.Dismissed, settle,
+      );
+      cleanups.push(() => listenerDismissed.remove());
+      const listenerFailed = await AdMob.addListener(
+        'interstitialAdFailedToShow' as InterstitialAdPluginEvents.FailedToShow, settle,
+      );
+      cleanups.push(() => listenerFailed.remove());
+      if (session.signal.aborted) return false;
+      try {
+        attemptedShow = true;
+        await AdMob.showInterstitial();
+      } catch (error) {
+        // If the SDK already displayed it, keep the lock until dismissal.
+        if (actuallyShown) await dismissed;
+        else throw error;
       }
-      if (session.signal.aborted) return false;
-      if (!adMobInitialized) {
-        await capacitorAdMob.initialize?.();
-        adMobInitialized = true;
-      }
-      if (session.signal.aborted) return false;
-      await capacitorAdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_ID });
-      if (session.signal.aborted) return false;
-      await capacitorAdMob.showInterstitial();
-      session.markShown();
-      // showInterstitial resolves when presentation starts, not when it closes.
       await dismissed;
       return true;
     }
@@ -124,6 +150,13 @@ export async function requestAdMobInterstitial(session: AdSession): Promise<bool
         console.warn('Could not remove AdMob listener:', error);
       }
     }));
+    // Even a dismissed/cancelled presentation consumes the preloaded interstitial.
+    if (attemptedShow) {
+      preparation = null;
+      void warmupNativeInterstitial().catch((error: unknown) => {
+        console.warn('AdMob preload failed:', error);
+      });
+    }
   }
   return false;
 }
@@ -248,6 +281,11 @@ export const gamePlatform = {
 
   initialize(): void {
     if (this.isCrazyGames) void ensureCrazyGamesInitialized();
+    if (this.isNative) {
+      void warmupNativeInterstitial().catch((error: unknown) => {
+        console.warn('AdMob initialization or preload failed:', error);
+      });
+    }
   },
 
   runStarted(): void {
@@ -270,6 +308,6 @@ export const gamePlatform = {
       });
     }
 
-    // AdMob is requested only by adsenseGameAds.showGameOverAd().
+    // AdMob is requested only by adsenseGameAds.tryShowGameOverAd().
   },
 };

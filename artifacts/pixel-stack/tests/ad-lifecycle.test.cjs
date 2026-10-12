@@ -38,7 +38,7 @@ function handlers() {
     t: (key) => key, createLocalRunSeed: () => 1,
     checkQualification() {},
     gamePlatform: { initialize() {}, runStarted() {}, runStopped() { counts.stop++; }, isCrazyGames: false },
-    adsenseGameAds: { showGameOverAd() { counts.ads++; }, cancelPending() { counts.cancel++; } },
+    adsenseGameAds: { tryShowGameOverAd() { counts.ads++; }, cancelPending() { counts.cancel++; } },
   };
   for (const name of [
     'Score', 'Level', 'Combo', 'Paused', 'GameState', 'Message', 'QualifyingScore',

@@ -1,10 +1,10 @@
 ---
-name: Alcance de cambios de iconos Android
-description: Restricción del usuario sobre workflows al integrar los iconos nativos.
+name: Protección de workflows del proyecto
+description: Instrucción permanente de no modificar ni crear commits para los workflows.
 ---
 
-Al generar e integrar los recursos del icono Android, el usuario indicó: «IMPORTANTE: No modifiques ningún archivo dentro de .github/workflows/.»
+No modificar ningún archivo dentro de `.github/workflows/`, en particular `.github/workflows/android-build.yml`, ni crear commits para ese archivo. Mantener intacta toda la carpeta.
 
-**Why:** El usuario pidió explícitamente que esta corrección se limitara a la integración nativa sin cambios en los workflows.
+**Why:** El usuario lo pidió explícitamente para el proyecto, sin limitarlo a los iconos Android ni a esta tarea.
 
-**How to apply:** En trabajos de iconos Android, conservar esos archivos byte por byte. Si una solución requiere modificar la automatización, explicar el bloqueo y pedir autorización antes de hacerlo.
+**How to apply:** En cualquier tarea futura, resolver el trabajo sin editar, crear, eliminar o incluir en commits archivos de esa carpeta. Si algo exige cambiarla, explicar el bloqueo en lugar de modificarla.

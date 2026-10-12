@@ -16,7 +16,11 @@ export function canRequestAd(cooldownMs: number, now = Date.now()): boolean {
     && (lastAttemptAt === null || now - lastAttemptAt >= RETRY_DELAY_MS);
 }
 
-export function beginAd(cooldownMs: number): AdSession | null {
+export function lastAdShownTimestamp(): number | null {
+  return lastShownAt;
+}
+
+export function beginAd(cooldownMs: number, cooldownFromDismissal = true): AdSession | null {
   if (!canRequestAd(cooldownMs)) return null;
   const controller = new AbortController();
   active = controller;
@@ -32,7 +36,7 @@ export function beginAd(cooldownMs: number): AdSession | null {
     finish() {
       if (active !== controller) return;
       // Count the interval from dismissal, not from the start of loading.
-      if (shown) lastShownAt = Date.now();
+      if (shown && cooldownFromDismissal) lastShownAt = Date.now();
       active = null;
       controller.abort();
     },

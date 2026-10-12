@@ -261,7 +261,7 @@ function Home() {
       handledGameOverRef.current = true;
       gamePlatform.runStopped();
       if (!gamePlatform.isCrazyGames) {
-        void adsenseGameAds.showGameOverAd(
+        void adsenseGameAds.tryShowGameOverAd(
           () => {},
           {
             pause: () => window.PixelStackAudio?.setMuted(true),
@@ -440,25 +440,27 @@ function Home() {
           )}
         </div>
 
-        <div className="control-row">
-          <button className="control-button" onClick={() => { if (gameState === 'ready') return; setPaused((value) => !value); }} disabled={gameState === 'ready' || gameState === 'gameover'} data-testid="button-pause">
-            {paused ? <Play size={15} /> : <Pause size={15} />}
-            {paused ? t('resume') : t('pause')}
-          </button>
-          <button className="control-button leaderboard-trigger" onClick={() => void loadScores(true)} data-testid="button-leaderboard">
-            <Trophy size={15} /> {t('leaderboard')}
-          </button>
-          <button className="control-button" onClick={restart} data-testid="button-restart">
-            <RotateCcw size={15} /> {t('newRun')}
-          </button>
-        </div>
+        <div className="bottom-controls">
+          <div className="control-row">
+            <button className="control-button" onClick={() => { if (gameState === 'ready') return; setPaused((value) => !value); }} disabled={gameState === 'ready' || gameState === 'gameover'} data-testid="button-pause">
+              {paused ? <Play size={15} /> : <Pause size={15} />}
+              {paused ? t('resume') : t('pause')}
+            </button>
+            <button className="control-button leaderboard-trigger" onClick={() => void loadScores(true)} data-testid="button-leaderboard">
+              <Trophy size={15} /> {t('leaderboard')}
+            </button>
+            <button className="control-button" onClick={restart} data-testid="button-restart">
+              <RotateCcw size={15} /> {t('newRun')}
+            </button>
+          </div>
 
-        <footer className="game-footer">
-          <div><Flame size={14} /><span>{t('risingLava')}</span></div>
-          <span className="footer-divider">/</span>
-          <div><Crosshair size={14} /><span>{t('buildWithinLine')}</span></div>
-          <span className="version">PS–01</span>
-        </footer>
+          <footer className="game-footer">
+            <div><Flame size={14} /><span>{t('risingLava')}</span></div>
+            <span className="footer-divider">/</span>
+            <div><Crosshair size={14} /><span>{t('buildWithinLine')}</span></div>
+            <span className="version">PS–01</span>
+          </footer>
+        </div>
       </section>
       {leaderboardOpen && (
         <div className="leaderboard-overlay" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title" data-testid="overlay-leaderboard">

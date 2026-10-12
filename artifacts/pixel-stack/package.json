@@ -11,18 +11,20 @@
     "test:ads": "node --test tests/*.test.cjs"
   },
   "dependencies": {
-    "@capacitor/core": "^6.0.0",
-    "@capacitor-community/admob": "^6.0.0",
+    "@capacitor-community/admob": "^8.2.1",
+    "@capacitor/core": "^8.5.3",
+    "clsx": "catalog:",
+    "framer-motion": "catalog:",
+    "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "lucide-react": "catalog:",
-    "wouter": "^3.3.5",
-    "clsx": "catalog:",
     "tailwind-merge": "catalog:",
-    "framer-motion": "catalog:",
+    "wouter": "^3.3.5",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/cli": "8.5.3",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.4",
     "@radix-ui/react-alert-dialog": "^1.1.7",
