@@ -8,6 +8,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { adsenseGameAds } from '@/lib/adsense';
 import { gamePlatform } from '@/lib/platform-adapter';
+import { apiJson } from '@/lib/api';
+import { cacheScores, parseHighScores, readCachedScores } from '@/lib/leaderboard-cache';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -126,7 +128,9 @@ function Home() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTab, setHelpTab] = useState<'play' | 'install'>('play');
-  const [scores, setScores] = useState<HighScore[]>([]);
+  const [scores, setScores] = useState<HighScore[]>(() => readCachedScores() ?? []);
+  const [hasKnownRanking, setHasKnownRanking] = useState(() => readCachedScores() !== null);
+  const scoresRequestRef = useRef(0);
   const [leaderboardStatus, setLeaderboardStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [qualifyingScore, setQualifyingScore] = useState<number | null>(null);
   const [qualifyingRun, setQualifyingRun] = useState<{ level: number; timePlayedSeconds: number } | null>(null);
@@ -170,20 +174,38 @@ function Home() {
   }, [score, best]);
 
   const loadScores = useCallback(async (open = false) => {
+    const requestId = ++scoresRequestRef.current;
     if (open) setLeaderboardOpen(true);
     setLeaderboardStatus('loading');
     try {
-      const response = await fetch('/api/scores', { cache: 'no-store' });
-      if (!response.ok) throw new Error('Could not load scores');
-      const data = await response.json() as HighScore[];
-      setScores(data);
-      setLeaderboardStatus('idle');
+      const data = parseHighScores(await apiJson<unknown>('/api/scores', { cache: 'no-store' }));
+      if (requestId === scoresRequestRef.current) {
+        cacheScores(data);
+        setScores(data);
+        setHasKnownRanking(true);
+        setLeaderboardStatus('idle');
+      }
       return data;
     } catch {
-      setLeaderboardStatus('error');
+      if (requestId === scoresRequestRef.current) {
+        const cached = readCachedScores();
+        if (cached !== null) {
+          setScores(cached);
+          setHasKnownRanking(true);
+        }
+        setLeaderboardStatus('error');
+      }
+      // Cached data is for display only, never for deciding score qualification.
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    if (!leaderboardOpen || leaderboardStatus !== 'error') return;
+    const reconnect = () => void loadScores();
+    window.addEventListener('online', reconnect);
+    return () => window.removeEventListener('online', reconnect);
+  }, [leaderboardOpen, leaderboardStatus, loadScores]);
 
   const checkQualification = useCallback(async (finalScore: number, endedAtMs: number) => {
     setQualifyingScore(null);
@@ -244,7 +266,7 @@ function Home() {
     setSubmitStatus('submitting');
     setSubmitMessage('');
     try {
-      const response = await fetch('/api/scores', {
+      const payload = await apiJson<{ success: boolean }>('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -254,10 +276,7 @@ function Home() {
           timePlayedSeconds: qualifyingRun?.timePlayedSeconds,
         }),
       });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(payload?.error || t('scoreSaveFailed'));
-      }
+      if (payload.success !== true) throw new Error(t('scoreSaveFailed'));
       setSubmitStatus('submitted');
       setSubmitMessage(t('scoreSaved'));
       setLastSubmittedScore({ name: cleanNickname, score: qualifyingScore });
@@ -426,15 +445,17 @@ function Home() {
             <span className="overlay-kicker">{t('globalNetwork')}</span>
             <h2 id="leaderboard-title">{t('topPlayers')}</h2>
             <p className="leaderboard-subtitle">{t('topStacks')}</p>
-            {leaderboardStatus === 'loading' && <div className="leaderboard-state">{t('loadingSignal')}</div>}
+            {leaderboardStatus === 'loading' && (
+              <div className={`leaderboard-state${hasKnownRanking ? ' compact' : ''}`} role="status">{t('loadingSignal')}</div>
+            )}
             {leaderboardStatus === 'error' && (
-              <div className="leaderboard-state error">
-                {t('rankingOffline')}
-                <button onClick={() => void loadScores()}>{t('retry')}</button>
+              <div className={`leaderboard-state error${hasKnownRanking ? ' compact' : ''}`} role="status">
+                {t(hasKnownRanking ? 'rankingCached' : 'rankingOffline')}
+                <button onClick={() => void loadScores()} data-testid="button-retry-leaderboard">{t('retry')}</button>
               </div>
             )}
             {leaderboardStatus === 'idle' && scores.length === 0 && <div className="leaderboard-state">{t('noScores')}</div>}
-            {leaderboardStatus === 'idle' && scores.length > 0 && (
+            {scores.length > 0 && (
               <ol className="leaderboard-list">
                 {scores.map((entry, index) => {
                   const isCurrentPlayer = lastSubmittedScore !== null

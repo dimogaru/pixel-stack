@@ -196,6 +196,7 @@ button:focus-visible { outline: 2px solid #55f2c6; outline-offset: 3px; }
 .leaderboard-list li.current-player strong, .leaderboard-list li.current-player .leader-score { color: #8effdf; text-shadow: 0 0 10px rgba(85,242,198,.55); }
 .leaderboard-state { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; border-block: 1px solid #403768; color: #756f9b; font: 9px var(--app-font-mono); letter-spacing: .1em; text-align: center; }
 .leaderboard-state.error { color: #ff8b7f; }
+.leaderboard-state.compact { min-height: 0; padding: 12px 0; }
 .leaderboard-state button { border: 1px solid #55f2c6; padding: 8px 12px; background: transparent; color: #55f2c6; font: 8px var(--app-font-mono); cursor: pointer; }
 .help-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(7,5,18,.86); backdrop-filter: blur(9px); }
 .help-card { position: relative; width: min(100%, 390px); max-height: calc(100dvh - 36px); overflow-y: auto; border: 1px solid #55f2c6; padding: 27px 20px 20px; background: linear-gradient(145deg, #181236, #110d28); box-shadow: 0 0 0 5px rgba(85,242,198,.07), 0 0 60px rgba(85,242,198,.14); animation: card-in .25s ease both; }

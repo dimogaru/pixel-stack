@@ -1,2 +1,3 @@
 - [Política de puntuaciones](score-integrity.md) — el Top 20 acepta directamente nombre y puntuación positiva; no reintroducir tokens ni replay sin una nueva petición explícita.
 - [Persistencia del ranking](leaderboard-persistence.md) — el Top 20 vive en PostgreSQL administrado; la poda concurrente se serializa y SQLite no es fuente de verdad.
+- [API en WebView](mobile-api-origin.md) — base HTTPS explícita en producción; preview aislado y caché offline solo informativa, sin reintentos automáticos de envíos.

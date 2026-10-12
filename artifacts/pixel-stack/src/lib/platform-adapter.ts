@@ -1,6 +1,3 @@
-import { Capacitor } from '@capacitor/core';
-import { AdMob } from '@capacitor-community/admob';
-
 // Control de Tiempos y Frecuencia
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 const GAMES_BEFORE_FIRST_AD = 2;
@@ -32,6 +29,17 @@ type NativeAdWindow = Window & {
 };
 
 let adMobInitialized = false;
+
+function isNativePlatform(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const capacitor = (window as NativeAdWindow).Capacitor;
+    return capacitor?.isNativePlatform?.()
+      ?? ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? 'web');
+  } catch {
+    return false;
+  }
+}
 
 // Only use an injected native bridge; never import or load a native SDK on web.
 export async function requestAdMobInterstitial(): Promise<boolean> {
@@ -143,11 +151,13 @@ function ensureCrazyGamesInitialized(): Promise<void> {
 
 // --- AdMob Helpers ---
 async function initializeAdMob(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!isNativePlatform()) return;
+  const AdMob = (window as NativeAdWindow).Capacitor?.Plugins?.AdMob;
+  if (!AdMob) return;
   try {
-    await AdMob.initialize();
+    await AdMob.initialize?.();
     await AdMob.prepareInterstitial({
-      adId: INTERSTITIAL_AD_ID,
+      adId: ADMOB_INTERSTITIAL_ID,
     });
   } catch (error) {
     console.warn('AdMob initialization failed:', error);
@@ -162,13 +172,15 @@ function ensureAdMobInitialized(): Promise<void> {
 }
 
 async function showAdMobInterstitial(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!isNativePlatform()) return;
+  const AdMob = (window as NativeAdWindow).Capacitor?.Plugins?.AdMob;
+  if (!AdMob) return;
   try {
     await ensureAdMobInitialized();
     await AdMob.showInterstitial();
     // Precargar el siguiente anuncio para la próxima ocasión
     await AdMob.prepareInterstitial({
-      adId: INTERSTITIAL_AD_ID,
+      adId: ADMOB_INTERSTITIAL_ID,
     });
   } catch (error) {
     console.warn('AdMob interstitial failed:', error);
@@ -207,7 +219,7 @@ async function requestCrazyGamesAd(): Promise<void> {
 
 export const gamePlatform = {
   isCrazyGames: isCrazyGamesEnvironment(),
-  isNative: Capacitor.isNativePlatform(),
+  isNative: isNativePlatform(),
   fullscreenEnabled: !isCrazyGamesEnvironment(),
 
   initialize(): void {

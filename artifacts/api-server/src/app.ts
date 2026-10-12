@@ -26,7 +26,17 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// Public leaderboard: no cookies required. Global middleware also answers OPTIONS.
+app.use(cors({
+  origin: (origin, callback) => callback(null, !origin || origin === "null"
+    || /^https:\/\//i.test(origin)
+    || /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)
+    || /^(capacitor|ionic):\/\/localhost$/i.test(origin)
+    || /^android-app:\/\//i.test(origin)),
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Accept", "Authorization"],
+  optionsSuccessStatus: 204,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -1,0 +1,25 @@
+Nuestra aplicación **Pixel Stack** ya se encuentra publicada en Google Play Store como Web App / TWA / WebView, pero en el entorno de producción (Android/Mobile) la parte final de la tabla de Ranking (Leaderboard) devuelve el error: **"Sin Conexión con el ranking"**.
+
+### Diagnóstico del problema:
+1. **Peticiones HTTP relativas:** El frontend actualmente realiza peticiones fetch a `/api/leaderboard` o endpoints relativos en lugar de utilizar una URL absoluta apuntando al servidor backend desplegado en producción.
+2. **CORS / Content Security Policy (CSP):** El backend o la configuración web puede estar bloqueando las peticiones procedentes del origen del WebView/Android app.
+3. **Manejo de Offline / Timeout:** Falta un fallback de reintento o detección adecuada del estado de red en cliente.
+
+### Instrucciones de implementación:
+
+1. **Configuración de Variables de Entorno para la API Backend:**
+   - Define una variable de entorno `VITE_API_BASE_URL` en el cliente (`artifacts/pixel-stack`).
+   - Modifica el cliente API y el adaptador de plataforma (`artifacts/pixel-stack/src/lib/platform-adapter.ts` o `custom-fetch.ts`) para que, cuando no esté configurada o en producción, la URL apunte explícitamente al dominio público HTTPS donde corre la API en Replit (o la URL externa correspondiente), en lugar de llamar a endpoints relativos `/api/...`.
+
+2. **Configuración de CORS en el Servidor (Express / API Server):**
+   - En `artifacts/api-server/src/app.ts` o middleware equivalente, habilita y configura CORS permitiendo orígenes móviles, esquemas `https://`, `http://localhost`, y orígenes de Android TWA (`android-app://...`).
+   - Asegúrate de responder correctamente a las peticiones preflight `OPTIONS`.
+
+3. **Manejo del Estado de Conexión y Retries en el Ranking Component:**
+   - En el componente de la tabla de ranking (donde se muestra la alerta "Sin Conexión con el ranking"):
+     - Añade un timeout claro a las peticiones HTTP (ej. 8 segundos).
+     - Añade un botón interactivo de **"Reintentar conexión"**.
+     - Guarda en caché local (`localStorage`) la última lista conocida del ranking para que, si falla la red, muestre la tabla guardada previamente en lugar de bloquear la interfaz con un mensaje de error fatal.
+
+4. **Verificación y Pruebas:**
+   - Ejecuta un build de prueba para validar que todas las llamadas a la API usan la URL absoluta de producción y que se gestiona la falta de red sin romper la interfaz.
