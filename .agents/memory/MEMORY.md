@@ -2,3 +2,4 @@
 - [Persistencia del ranking](leaderboard-persistence.md) — el Top 20 vive en PostgreSQL administrado; la poda concurrente se serializa y SQLite no es fuente de verdad.
 - [API en WebView](mobile-api-origin.md) — base HTTPS explícita en producción; preview aislado y caché offline solo informativa, sin reintentos automáticos de envíos.
 - [Ciclo de anuncios](ad-lifecycle.md) — una sola oportunidad por fin de partida; cancelar no debe desbloquear un SDK que aún pueda estar mostrando un anuncio.
+- [Alcance de iconos Android](android-icon-scope.md) — al integrar iconos nativos, el usuario prohíbe modificar archivos de .github/workflows/.
