@@ -50,8 +50,17 @@ jobs:
           if [ -f "index.html" ]; then cp index.html dist/; fi
           if [ -d "dist/public" ]; then cp -r dist/public/* dist/; fi
           
-          pnpm capacitor init PixelStack com.pixelstack.app --web-dir dist
-          pnpm capacitor add android || true
+          # Si no existe configuración previa se inicializa, si ya existe se omite este paso
+          if [ ! -f "capacitor.config.ts" ] && [ ! -f "capacitor.config.json" ]; then
+            pnpm capacitor init PixelStack com.pixelstack.app --web-dir dist
+          fi
+
+          # Añade la plataforma android si no existía la carpeta
+          if [ ! -d "android" ]; then
+            pnpm capacitor add android || true
+          fi
+
+          # Sincroniza los archivos compilados web hacia la app nativa Android
           pnpm capacitor sync android
 
       - name: Configurar AdMob e Incrementar VersionCode Dinámicamente
