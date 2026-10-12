@@ -63,12 +63,8 @@ jobs:
           # Sincroniza los archivos compilados web hacia la app nativa Android
           pnpm capacitor sync android
 
-      - name: Configurar AdMob e Incrementar VersionCode Dinámicamente
+      - name: Incrementar VersionCode Dinámicamente
         run: |
-          MANIFEST="artifacts/pixel-stack/android/app/src/main/AndroidManifest.xml"
-          ADMOB_APP_ID="ca-app-pub-9984763727647656~5245009196"
-          sed -i "/<\/application>/i \        <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"$ADMOB_APP_ID\"/>" $MANIFEST
-
           # Incrementar versionCode dinámicamente con el número de ejecución de GitHub
           GRADLE_FILE="artifacts/pixel-stack/android/app/build.gradle"
           BUILD_NUMBER="${{ github.run_number }}"
