@@ -1,0 +1,33 @@
+Actúa como un desarrollador Senior Full-Stack con experiencia en juegos HTML5/Capacitor y monetización con Google AdMob en Android.
+
+Necesito que revises y corrijas la implementación de Google AdMob en el proyecto para asegurar que los anuncios intersticiales se muestren correctamente en la versión de producción desplegada en Google Play.
+
+### Contexto e Identificadores Oficiales de AdMob
+- **App ID de AdMob (Android):** `ca-app-pub-9984763727647656~5245009196`
+- **Ad Unit ID (Intersticial):** `ca-app-pub-9984763727647656/4175470107`
+
+---
+
+### Instrucciones y Modificaciones Requeridas:
+
+1. **Revisión de Variables e Identificadores de Anuncios:**
+   - Examina todos los archivos del proyecto donde se configuren o utilicen IDs de AdMob (especialmente en `artifacts/pixel-stack/src/lib/platform-adapter.ts`, `ad-session.ts` o cualquier cliente/puente de AdMob).
+   - Sustituye cualquier ID de prueba de Google (ej. `ca-app-pub-3940256099942544/1033173712`) o ID obsoleto por el ID oficial de anuncio intersticial de producción: `ca-app-pub-9984763727647656/4175470107`.
+
+2. **Verificación del Manifiesto de Android:**
+   - Confirma que en `artifacts/pixel-stack/android/app/src/main/AndroidManifest.xml` la etiqueta `<meta-data>` dentro de `<application>` contenga el `APPLICATION_ID` correcto:
+     ```xml
+     <meta-data
+         android:name="com.google.android.gms.ads.APPLICATION_ID"
+         android:value="ca-app-pub-9984763727647656~5245009196" />
+     ```
+
+3. **Ciclo de Vida e Inicialización del SDK:**
+   - Asegúrate de que el SDK de AdMob (`AdMob.initialize()`) sea invocado de manera temprana en el arranque de la app en la capa nativa o durante la carga de `platform-adapter.ts`.
+   - Verifica que la lógica de precarga (`prepare()`) y posterior despliegue (`show()`) del anuncio intersticial maneje promesas o errores de forma segura sin bloquear el flujo principal de la partida ni causar excepciones en pantalla.
+   - En entorno de producción (`BUILD`), desactiva cualquier flag de modo prueba (`isTesting: false` o arreglo `testingDevices` vacío).
+
+4. **Comprobación:**
+   - Ejecuta las pruebas existentes (ej. `pnpm test` en el módulo de anuncios o tests de ciclo de vida) para confirmar que no se rompe ninguna dependencia o prueba unitaria.
+
+Realiza los cambios directamente en el código y confirma cuando la configuración esté lista para compilar el nuevo bundle (`.aab`).

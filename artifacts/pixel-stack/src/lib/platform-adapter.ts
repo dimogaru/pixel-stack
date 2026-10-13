@@ -11,7 +11,7 @@ const ADMOB_INTERSTITIAL_ID = 'ca-app-pub-9984763727647656/4175470107';
 
 type CordovaAdMob = {
   prepareInterstitial?: (
-    options: { adId: string; autoShow: boolean },
+    options: { adId: string; autoShow: boolean; isTesting: boolean },
     onSuccess: () => void,
     onError: (error: unknown) => void,
   ) => void | Promise<unknown>;
@@ -45,7 +45,7 @@ async function nativeAdMob(): Promise<AdMobPlugin> {
   if (!admobPromise) {
     admobPromise = import('@capacitor-community/admob')
       .then(async ({ AdMob }) => {
-        await AdMob.initialize();
+        await AdMob.initialize({ initializeForTesting: false, testingDevices: [] });
         return AdMob;
       })
       .catch((error: unknown) => {
@@ -61,7 +61,10 @@ export function warmupNativeInterstitial(): Promise<void> {
   if (!isNativePlatform()) return Promise.resolve();
   if (!preparation) {
     preparation = nativeAdMob()
-      .then((AdMob) => AdMob.prepareInterstitial({ adId: ADMOB_INTERSTITIAL_ID }))
+      .then((AdMob) => AdMob.prepareInterstitial({
+        adId: ADMOB_INTERSTITIAL_ID,
+        isTesting: false,
+      }))
       .then(() => {})
       .catch((error: unknown) => {
         preparation = null;
@@ -128,7 +131,7 @@ export async function requestAdMobInterstitial(session: AdSession): Promise<bool
       await new Promise<void>((resolve, reject) => {
         const pending = prepare.call(
           cordovaAdMob,
-          { adId: ADMOB_INTERSTITIAL_ID, autoShow: false },
+          { adId: ADMOB_INTERSTITIAL_ID, autoShow: false, isTesting: false },
           () => resolve(),
           reject,
         );

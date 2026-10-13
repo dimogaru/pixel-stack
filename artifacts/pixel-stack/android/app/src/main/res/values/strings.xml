@@ -4,5 +4,4 @@
     <string name="title_activity_main">PixelStack</string>
     <string name="package_name">com.pixelstack.app</string>
     <string name="custom_url_scheme">com.pixelstack.app</string>
-    <string name="admob_app_id">ca-app-pub-9984763727647656~5245009196</string>
 </resources>

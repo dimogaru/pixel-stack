@@ -19,10 +19,15 @@ function environment(native = false) {
   const document = new EventTarget();
   const window = { location: { pathname: '/' } };
   const sdk = {
-    async initialize() { calls.initialize++; },
-    async prepareInterstitial({ adId }) {
+    async initialize(options) {
+      calls.initialize++;
+      assert.equal(options.initializeForTesting, false);
+      assert.deepEqual(Array.from(options.testingDevices), []);
+    },
+    async prepareInterstitial({ adId, isTesting }) {
       calls.prepare++;
       assert.equal(adId, 'ca-app-pub-9984763727647656/4175470107');
+      assert.equal(isTesting, false);
     },
     async showInterstitial() {
       calls.show++;
@@ -75,6 +80,19 @@ function environment(native = false) {
     dismiss: () => events.get('interstitialAdDismissed')?.(),
   };
 }
+
+test('Android manifest declares the production AdMob application ID exactly once', () => {
+  const manifest = fs.readFileSync(
+    path.resolve(__dirname, '../android/app/src/main/AndroidManifest.xml'), 'utf8',
+  );
+  const application = manifest.match(/<application\b[^>]*>([\s\S]*?)<\/application>/);
+  assert.ok(application, 'application element must exist');
+  const metadata = application[1].match(
+    /<meta-data\b[^>]*android:name="com\.google\.android\.gms\.ads\.APPLICATION_ID"[^>]*\/>/g,
+  ) ?? [];
+  assert.equal(metadata.length, 1, 'do not duplicate AdMob application metadata');
+  assert.match(metadata[0], /android:value="ca-app-pub-9984763727647656~5245009196"/);
+});
 
 test('Android preloads once on launch and shows only on the first GAME_OVER', async () => {
   const e = environment(true);
@@ -176,6 +194,30 @@ test('navigation during a shown native ad retains lock until SDK dismissal', asy
   assert.equal(e.events.size, 0);
 });
 
+test('SDK initialization failure is handled at startup and GAME_OVER, then can retry', async () => {
+  const e = environment(true);
+  e.sdk.initialize = async () => {
+    e.calls.initialize++;
+    throw new Error('SDK initialization failed');
+  };
+  e.gamePlatform.initialize();
+  await tick();
+  assert.equal(e.calls.initialize, 1);
+  assert.equal(e.calls.prepare, 0);
+  let completed = 0;
+  await e.ads.tryShowGameOverAd(() => { completed++; }, e.audio);
+  assert.equal(completed, 1, 'continue the game-over flow despite the SDK failure');
+  assert.equal(e.calls.pause, e.calls.resume);
+  assert.equal(e.calls.show, 0);
+  e.advance(30_000);
+  e.sdk.initialize = async () => { e.calls.initialize++; };
+  const retry = e.ads.tryShowGameOverAd(() => {}, e.audio);
+  await tick();
+  assert.equal(e.calls.show, 1);
+  e.dismiss();
+  await retry;
+});
+
 test('native preload failures do not call the web provider and throttle retries', async () => {
   const e = environment(true);
   e.window.adBreak = () => { e.calls.web++; };
@@ -243,6 +285,8 @@ test('Cordova manual bridge remains supported without importing the Capacitor pl
   } };
   const pending = e.ads.tryShowGameOverAd(() => {}, e.audio);
   assert.equal(options.autoShow, false);
+  assert.equal(options.isTesting, false);
+  assert.equal(options.adId, 'ca-app-pub-9984763727647656/4175470107');
   loaded();
   await tick();
   assert.equal(e.calls.show, 1);
